@@ -10,7 +10,7 @@ HOST = "127.0.0.2"
 PORT = 8081
 SEGMENT_SIZE = 1000
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject 
-RTT = 0.5
+RTT = 1
 
 class Server:
     def __init__(self) -> None:
@@ -118,17 +118,18 @@ class Server:
             end = time.time()
             rtts.append(end - start)
             # bar.update(index)
-            logging.info(f"Estimated RTT {int((sum(rtts) / len(rtts)) * 1000)} ms")
-            logging.info(f"Total time to send file {int(sum(rtts) * 1000)} ms ")
-            logging.info(f"Transmission rate: {os.stat(filename).st_size / int(sum(rtts) * 1000)}")
-            self.send(self.clientPort, "FIN")
+        logging.info(f"Estimated RTT {int((sum(rtts) / len(rtts)) * 1000)} ms")
+        logging.info(f"Total time to send file {int(sum(rtts) * 1000)} ms ")
+        logging.info(f"Transmission rate: {os.stat(filename).st_size / int(sum(rtts) * 1000)}")
+        self.send(self.clientPort, "FIN")
 
     def ackHandler(self,ServerSocket):
         # check for ACK 
-        rcvACK, _ = self.rcv(ServerSocket, 8)
-        logging.debug(f"recieved ACK: {int((rcvACK).decode()[3:])}" )
+        rcvACK, _ = self.rcv(ServerSocket, 15)
+        print("recvACK:" + str(rcvACK))
+        logging.debug(f"recieved ACK: {(rcvACK).decode()[3:]}" )
 
-        return int((rcvACK).decode()[3:])
+        return int((rcvACK).decode()[3:][:7])
 
 
 
