@@ -7,7 +7,7 @@ import time
 from func_timeout import func_timeout, FunctionTimedOut
 
 HOST = "127.0.0.2"
-PORT = 8080
+PORT = 8081
 SEGMENT_SIZE = 1000
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject 
 RTT = 0.0489288
@@ -43,8 +43,8 @@ class Server:
         else:
             raise ConnectionRefusedError
 
-        self.send(self.clientPort, f"SYNACK{self.NewPort}")
-        logging.info( f"SYNACK sent 🚀")
+        self.send(self.clientPort, f"SYN-ACK{self.NewPort}")
+        logging.info( f"SYN-ACK sent 🚀")
 
         message, address = self.rcv(self.ServerSocket, handshakeBuffer)
         print(f"message recieved {message}")
@@ -65,7 +65,7 @@ class Server:
         message, _ = self.rcv(self.DataSocket, filenameBuffer)
         logging.debug("message recieved: " + str(message))
 
-        filename = str(message)[:-5]
+        filename = message.decode()[:-1]
         logging.info(f"file name recieved {filename}")
 
         if not os.path.exists(filename):
@@ -115,10 +115,10 @@ class Server:
                 end = time.time()
                 rtts.append(end - start)
                 bar.update(index)
-                time.sleep(0.5)
             logging.info(f"Estimated RTT {int((sum(rtts) / len(rtts)) * 1000)} ms")
             logging.info(f"Total time to send file {int(sum(rtts) * 1000)} ms ")
-
+            logging.info(f"\tTransmission rate: {os.stat(filename).st_size / int(sum(rtts) * 1000)}")
+            self.send(self.clientPort, "FIN")
 
     def ackHandler(self,ServerSocket):
         # check for ACK 
