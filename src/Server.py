@@ -2,10 +2,15 @@ import socket
 import logging
 import random
 import os 
+import progressbar
+import time
+from func_timeout import func_timeout, FunctionTimedOut
 
 HOST = "127.0.0.2"
 PORT = 8080
 SEGMENT_SIZE = 1000
+SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject 
+RTT = 0.0489288
 
 class Server:
     def __init__(self) -> None:
@@ -32,13 +37,13 @@ class Server:
     def handshake(self):
         handshakeBuffer = 12
         message, address = self.rcv(self.ServerSocket, handshakeBuffer)
-        clientPort = address[1]
+        self.clientPort = address[1]
         if b"SYN" in message:
             logging.info( f"SYN Received from {address}")
         else:
             raise ConnectionRefusedError
 
-        self.send(clientPort, f"SYNACK{self.NewPort}")
+        self.send(self.clientPort, f"SYNACK{self.NewPort}")
         logging.info( f"SYNACK sent 🚀")
 
         message, address = self.rcv(self.ServerSocket, handshakeBuffer)
@@ -51,7 +56,7 @@ class Server:
 
     def _getSegments(self,data):
         """return: list of segments"""
-        return [str(x // SEGMENT_SIZE).zfill(20).encode() + data[x:x + SEGMENT_SIZE] for x in
+        return [str(x // SEGMENT_SIZE).zfill(SEGMENT_ID_SIZE).encode() + data[x:x + SEGMENT_SIZE] for x in
             range(0, len(data), SEGMENT_SIZE)]
 
 
@@ -73,6 +78,55 @@ class Server:
         segments = self._getSegments(file)  # segment the files 
         logging.info(f"File segmented into {len(file) // SEGMENT_SIZE} segment")
 
+        
+        CWindow = 1  # Congestion Window
+        rtts = []
+        index = 0
+        LastACK = 0
+        CwndLogs = []
+        widgets = [
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar("=","[","]"),
+            ' (', progressbar.ETA(), ') ',
+        ]
+        with progressbar.ProgressBar(max_value=len(segments), redirect_stdout=True,widgets=widgets) as bar:
+            while index < len(segments):
+                CwndLogs.append(CWindow)
+                segment = segments[index]
+                remainingSegments = len(segments[index:])
+                if remainingSegments < CWindow:
+                    CWindow = remainingSegments
+                start = time.time()
+                FlightSize = range(index, index + CWindow)
+                for segIG in FlightSize:
+                    self.send(self.clientPort, segments[segIG])
+                    # log("SLOW_START" , f"Sending segment {segIG}")
+                index += CWindow
+                for _ in FlightSize:
+                    try:
+                        LastACK = func_timeout(RTT, self.ackHandler, (self.ServerSocket,))
+                        CWindow += 1
+                    except FunctionTimedOut:  # dropedd a segment
+                        logging.info(f"segment {index} not acked 😭")
+                        CWindow = 1  # reset the CWindow
+                        self.send(self.clientPort, segments[LastACK + 1])  # resend the lost segment
+
+                logging.info(f"CWindow: {CWindow}")
+                end = time.time()
+                rtts.append(end - start)
+                bar.update(index)
+                time.sleep(0.5)
+            logging.info(f"Estimated RTT {int((sum(rtts) / len(rtts)) * 1000)} ms")
+            logging.info(f"Total time to send file {int(sum(rtts) * 1000)} ms ")
+
+
+    def ackHandler(self,ServerSocket):
+        # check for ACK 
+        rcvACK, _ = self.rcv(ServerSocket, 8)
+        # log('SEND_FILE', f'ACK: recieved ACK {rcvACK}')
+        logging.debug(f"recieved ACK: {str(rcvACK)}" )
+
+        return int((rcvACK).decode()[4:])
 
 
 
