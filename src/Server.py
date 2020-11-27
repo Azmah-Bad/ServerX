@@ -89,49 +89,49 @@ class Server:
             progressbar.Bar("=","[","]"),
             ' (', progressbar.ETA(), ') ',
         ]
-        with progressbar.ProgressBar(max_value=len(segments), redirect_stdout=True,widgets=widgets) as bar:
-            while index < len(segments):
-                CwndLogs.append(CWindow)
-                segment = segments[index]
-                remainingSegments = len(segments[index:])
-                if remainingSegments < CWindow:
-                    CWindow = remainingSegments
-                start = time.time()
-                FlightSize = range(index, index + CWindow)
-                for segIG in FlightSize:
-                    self.send(self.clientPort, segments[segIG])
-                    # log("SLOW_START" , f"Sending segment {segIG}")
-                index += CWindow
-                for _ in FlightSize:
-                    try:
-                        LastACK = func_timeout(RTT, self.ackHandler, (self.ServerSocket,))
-                        CWindow += 1
-                    except FunctionTimedOut:  # dropedd a segment
-                        logging.info(f"segment {index} not acked 😭")
-                        CWindow = 1  # reset the CWindow
-                        self.send(self.clientPort, segments[LastACK + 1])  # resend the lost segment
+        # with progressbar.ProgressBar(max_value=len(segments), redirect_stdout=True,widgets=widgets) as bar:
+        while index < len(segments):
+            CwndLogs.append(CWindow)
+            segment = segments[index]
+            remainingSegments = len(segments[index:])
+            if remainingSegments < CWindow:
+                CWindow = remainingSegments
+            start = time.time()
+            FlightSize = range(index, index + CWindow)
+            for segIG in FlightSize:
+                self.send(self.clientPort, segments[segIG])
+                # log("SLOW_START" , f"Sending segment {segIG}")
+            index += CWindow
+            for _ in FlightSize:
+                try:
+                    LastACK = func_timeout(RTT, self.ackHandler, (self.ServerSocket,))
+                    CWindow += 1
+                except FunctionTimedOut:  # dropedd a segment
+                    logging.info(f"segment {index} not acked 😭")
+                    CWindow = 1  # reset the CWindow
+                    self.send(self.clientPort, segments[LastACK + 1])  # resend the lost segment
 
-                logging.info(f"CWindow: {CWindow}")
-                end = time.time()
-                rtts.append(end - start)
-                bar.update(index)
+            logging.info(f"CWindow: {CWindow}")
+            end = time.time()
+            rtts.append(end - start)
+            # bar.update(index)
             logging.info(f"Estimated RTT {int((sum(rtts) / len(rtts)) * 1000)} ms")
             logging.info(f"Total time to send file {int(sum(rtts) * 1000)} ms ")
-            logging.info(f"\tTransmission rate: {os.stat(filename).st_size / int(sum(rtts) * 1000)}")
+            logging.info(f"Transmission rate: {os.stat(filename).st_size / int(sum(rtts) * 1000)}")
             self.send(self.clientPort, "FIN")
 
     def ackHandler(self,ServerSocket):
         # check for ACK 
         rcvACK, _ = self.rcv(ServerSocket, 8)
         # log('SEND_FILE', f'ACK: recieved ACK {rcvACK}')
-        logging.debug(f"recieved ACK: {str(rcvACK)}" )
+        logging.debug(f"recieved ACK: {int((rcvACK).decode()[3:])}" )
 
-        return int((rcvACK).decode()[4:])
+        return int((rcvACK).decode()[3:])
 
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format='%(asctime)s--[%(levelname)s] :%(message)s',
+    logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
                         level=logging.DEBUG)
     
     server = Server()
