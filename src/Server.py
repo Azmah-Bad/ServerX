@@ -26,7 +26,7 @@ class Server:
 
     
     def rcv(self, Socket, bufferSize):
-        return self.Socket.recvfrom(bufferSize)
+        return Socket.recvfrom(bufferSize)
 
 
     def handshake(self):
@@ -58,9 +58,9 @@ class Server:
     def sendFile(self):
         filenameBuffer = 15
         message, _ = self.rcv(self.DataSocket, filenameBuffer)
-        logging.debug("message recieved: " + message)
+        logging.debug("message recieved: " + str(message))
 
-        filename = str(message)[:-3]
+        filename = str(message)[:-5]
         logging.info(f"file name recieved {filename}")
 
         if not os.path.exists(filename):
