@@ -1,5 +1,8 @@
 Parameters that can be modified to have an impact on the rate : 
     - the fragmentation size
+    - Initial RTT
+    - time-out to resend a paquet
+
 
 
 
