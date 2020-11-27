@@ -10,7 +10,7 @@ HOST = "127.0.0.2"
 PORT = 8081
 SEGMENT_SIZE = 1000
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject 
-RTT = 0.0489288
+RTT = 0.5
 
 class Server:
     def __init__(self) -> None:
@@ -94,21 +94,24 @@ class Server:
             CwndLogs.append(CWindow)
             segment = segments[index]
             remainingSegments = len(segments[index:])
+            ExpectedACK = []
             if remainingSegments < CWindow:
                 CWindow = remainingSegments
             start = time.time()
             FlightSize = range(index, index + CWindow)
-            for segIG in FlightSize:
-                self.send(self.clientPort, segments[segIG])
-                # log("SLOW_START" , f"Sending segment {segIG}")
+            for segID in FlightSize:
+                self.send(self.clientPort, segments[segID])
+                ExpectedACK.append(segID)
+
             index += CWindow
-            for _ in FlightSize:
+            while ExpectedACK != []:
                 try:
                     LastACK = func_timeout(RTT, self.ackHandler, (self.ServerSocket,))
+                    ExpectedACK.remove(ExpectedACK.index(LastACK))
                     CWindow += 1
                 except FunctionTimedOut:  # dropedd a segment
-                    logging.info(f"segment {index} not acked 😭")
-                    CWindow = 1  # reset the CWindow
+                    logging.info(f"segment {ExpectedACK} not dropped 😭")
+                    CWindow = 1  # reset the CWindow                 
                     self.send(self.clientPort, segments[LastACK + 1])  # resend the lost segment
 
             logging.info(f"CWindow: {CWindow}")
@@ -123,7 +126,6 @@ class Server:
     def ackHandler(self,ServerSocket):
         # check for ACK 
         rcvACK, _ = self.rcv(ServerSocket, 8)
-        # log('SEND_FILE', f'ACK: recieved ACK {rcvACK}')
         logging.debug(f"recieved ACK: {int((rcvACK).decode()[3:])}" )
 
         return int((rcvACK).decode()[3:])
