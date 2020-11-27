@@ -3,7 +3,7 @@ import logging
 import random
 
 HOST = "127.0.0.2"
-PORT = 69100
+PORT = 8080
 
 class Server:
     def __init__(self) -> None:
