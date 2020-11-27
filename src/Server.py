@@ -1,6 +1,7 @@
 import socket
 import logging
 import random
+
 HOST = "127.0.0.2"
 PORT = 69100
 
@@ -48,3 +49,6 @@ class Server:
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s--[%(levelname)s] :%(message)s',
                         level=logging.DEBUG)
+    
+    server = Server()
+    server.handshake()
