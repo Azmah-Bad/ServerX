@@ -16,14 +16,10 @@ def main():
 
     for index in range(len(File1)):
         if File1[index] != File2[index]:
-            print(f"First difference at char {index}")
+            print(f"First difference at segment {index // 15000}")
             break
         if index == len(File1) - 1:
             print("No difference, files are identical 🥳")
-
-
-
-
 
     # print(File2[0:1000])
 
