@@ -1,3 +1,8 @@
+"""
+out of 8100 packet client 1 dropped 547
+6 % chance of dropping a packet
+"""
+
 import socket
 import logging
 import random
@@ -6,12 +11,16 @@ import progressbar
 import time
 from func_timeout import func_timeout, FunctionTimedOut
 import matplotlib.pyplot as plt
+import sys
 
 HOST = "127.0.0.2"  # TODO Change this so all hosts can work
+if len(sys.argv) == 2:
+    HOST = sys.argv[1]
+
 PORT = 8080
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
 SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
-RTT = 1
+RTT = 0.015
 
 
 class Server:
@@ -75,7 +84,7 @@ class Server:
         segments = self._getSegments(file)  # segment the files 
         logging.info(f"File segmented into {len(file) // SEGMENT_SIZE} segments")
 
-        CWindow = 1  # Congestion Window
+        CWindow = 5  # Congestion Window
         rtts = []
         index = 0
         LastACK = 0
@@ -106,7 +115,7 @@ class Server:
         logging.info(f"Estimated RTT {int((sum(rtts) / len(rtts)) * 1000)} ms")
         logging.info(f"Total time to send file {int(sum(rtts) * 1000)} ms ")
         rate = "{:.2f}".format(round(os.stat(filename).st_size / int(sum(rtts) * (10 ** 6)), 2))
-        logging.info(f"Transmission rate: {rate} mbps")
+        logging.info(f"Transmission rate: {rate} MBps")
 
         with open("Cwind.log", "w") as LogFile:
             LogFile.write("\n".join([str(Cwnd) for Cwnd in CwndLogs]))
@@ -122,7 +131,7 @@ class Server:
 
         while ExpectedACKs:
             try:
-                logging.debug(f"Expected ACK: {ExpectedACKs[0]} => {ExpectedACKs[-1]}")
+                logging.debug(f"Expected ACK: {ExpectedACKs[0] + 1} => {ExpectedACKs[-1] + 1}")
                 ReceivedACK = func_timeout(RTT, self.ackHandler)
                 if ReceivedACK in ExpectedACKs:
                     for ack in range(min(ExpectedACKs), ReceivedACK + 1):
@@ -143,7 +152,6 @@ class Server:
 
     def ackHandler(self):
         # check for ACK
-        logging.debug(f"waiting for client ACK...")
         rcvACK, _ = self.rcv(self.ServerSocket, 10)
         logging.debug(f"received ACK from client: {rcvACK.decode()}")
 
@@ -151,34 +159,136 @@ class Server:
 
     def sendSegments2(self, FlightSize, segments, CWindow):
         LastACK = 0
+        ReceivedACK = 0
         for segID in FlightSize:
             self.send(self.clientPort, segments[segID])
 
         ExpectedACK = FlightSize[-1] + 1
-        logging.debug(f"sent segments {FlightSize[0]} => {FlightSize[-1]}")
+        logging.debug(f"sent segments {FlightSize[0] + 1} => {FlightSize[-1] + 1}")
 
-        for _ in FlightSize:
+        while not ReceivedACK > ExpectedACK:
             try:
                 ReceivedACK = func_timeout(RTT, self.ackHandler)
                 if ReceivedACK == LastACK:
                     logging.warning(f"Segment {LastACK + 1} dropped RIP 💀")
-                    self.send(self.clientPort, segments[LastACK + 2])
-                    CWindow = 1
-                if ReceivedACK == ExpectedACK:
-                    logging.debug(f"all segments were ACK'd 🤑")
-                    CWindow = CWindow * 2
-                    LastACK = ReceivedACK
-                    break
+                    self.send(self.clientPort, segments[LastACK])
+                    CWindow = 5
+                # if ReceivedACK >= ExpectedACK:
+                #     logging.debug(f"all segments were ACK'd 🤑")
+                #     CWindow = CWindow * 2
+                #     LastACK = ReceivedACK
+                #     break
                 LastACK = ReceivedACK
             except FunctionTimedOut:
                 logging.warning(f"Segment {LastACK + 1} dropped RIP 💀 from timeout")
+                self.send(self.clientPort, segments[LastACK])
+
+                CWindow = 5  # reset the CWindow
+
+        logging.debug(f"all segments were ACK'd 🤑")
+        CWindow = CWindow * 2
+        LastACK = ReceivedACK
         return CWindow
+
+    def sendFileNoSlowStart(self):
+        filenameBuffer = 15
+        message, _ = self.rcv(self.DataSocket, filenameBuffer)
+        filename = message.decode()[:-1]
+        logging.info(f"file name received {filename}")
+
+        if not os.path.exists(filename):
+            raise FileNotFoundError("file requested couldn't be found")
+
+        with open(filename, "rb") as f:
+            file = f.read()
+        logging.info(f"file loaded 🥳")
+
+        segments = self._getSegments(file)  # segment the files
+        logging.info(f"File segmented into {len(file) // SEGMENT_SIZE} segments")
+
+        start = time.time()
+        self.writer(segments)
+        mid = time.time()
+        self.reader(segments)
+        end = time.time()
+
+        self.send(self.clientPort, "FIN")
+        logging.info("File send with success 🎉")
+        logging.info(f"Total time {int((end - start) * 1000)} ms ")
+        logging.info(f"Total time to send file {int((mid - start) * 1000)} ms ")
+        logging.info(f"Total time to rcv acks {int((end - mid) * 1000)} ms ")
+        rate = "{:.2f}".format(round(os.stat(filename).st_size / int((end - start) * (10 ** 6)), 2))
+        logging.info(f"Transmission rate: {rate} MBps")
+
+    def writer(self, Segments):
+        logging.info("sending all segments")
+        for Segment in Segments:
+            self.send(self.clientPort, Segment)
+
+    def reader(self, Segments):
+        LastACK = 0
+        ReceivedACKs = []
+        for _ in range(len(Segments)):
+            try:
+                ReceivedACK = func_timeout(RTT, self.ackHandler)
+                ReceivedACKs.append(ReceivedACK)
+            except:
+                logging.warning(f"timed out ⏲")
+                break
+
+        if ReceivedACKs[-1] == ReceivedACKs[-2]:
+            logging.warning(f"dropped segment {ReceivedACKs[-1] + 1}")
+            self.send(self.clientPort, Segments[ReceivedACKs[-1]])
+
+    def sendFileIncrementally(self):
+        filenameBuffer = 15
+        message, _ = self.rcv(self.DataSocket, filenameBuffer)
+        filename = message.decode()[:-1]
+        logging.info(f"file name received {filename}")
+        DropCount = 0
+
+        if not os.path.exists(filename):
+            raise FileNotFoundError("file requested couldn't be found")
+
+        with open(filename, "rb") as f:
+            file = f.read()
+        logging.info(f"file loaded 🥳")
+
+        segments = self._getSegments(file)  # segment the files
+        logging.info(f"File segmented into {len(file) // SEGMENT_SIZE} segments")
+
+        start = time.time()
+        for index, segement in enumerate(segments):
+            self.send(self.clientPort, segement)
+            logging.debug(f"sending segement {index + 1}")
+            while True:
+                try:
+                    logging.debug(f"waiting for segment {index + 1}")
+                    ReceivedACK = func_timeout(2, self.ackHandler)
+                    if ReceivedACK >= index + 1:
+                        break
+                    else:
+                        self.send(self.clientPort, segement)
+                        logging.warning(f"dropped segment {index + 1}")
+                        DropCount += 1
+                except FunctionTimedOut:
+                    self.send(self.clientPort, segement)
+                    logging.warning(f"timed out ⏲ dropped segment {index + 1}")
+                    break
+        end = time.time()
+
+        self.send(self.clientPort, "FIN")
+        logging.info("File send with success 🎉")
+        logging.info(f"Total time {int((end - start) * 1000)} ms ")
+        rate = "{:.2f}".format(round(os.stat(filename).st_size / int((end - start) * (10 ** 6)), 2))  # bytes
+        logging.info(f"Transmission rate: {rate} MBps")
+        logging.warning(f"Dropped {DropCount} segments  out of {len(segments)}")
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s', datefmt="%H:%M:%S %f",
+    logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
                         level=logging.DEBUG)
 
     server = Server()
     server.handshake()
-    server.sendFile()
+    server.sendFileNoSlowStart()
