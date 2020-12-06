@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 
-LOG_FILE_PATH = "../src/Cwind.log"
+LOG_FILE_PATH = "../src/Cycle.log"
 
 
 def main():
     with open(LOG_FILE_PATH, "r") as file:
         rawLines = file.readlines()
 
-    Cwnds = list(map(lambda x: int(x), rawLines))
+    Cwnds = list(map(lambda x: float(x[:-2]), rawLines))
     plt.plot(Cwnds)
     plt.show()
 
