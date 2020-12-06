@@ -8,20 +8,21 @@ import time
 
 from BaseServer import BaseServer
 
-WINDOW_SIZE = 20  # on average we lose 1 segment per 20 segments
+WINDOW_SIZE = 40  # on average we lose 1 segment per 20 segments
 DroppedSegmentCount = 0
 
 
 class Server(BaseServer):
     rcvLogs = []
-    
-    def ackHandler(self):
+    ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
+
+    def ackHandler(self, debug=True):
         start = time.time()
-        value = super().ackHandler()
+        value = super().ackHandler(debug)
         end = time.time()
         self.rcvLogs.append(end - start)
         return value
-    
+
     def engine(self, Segments):
         Index = 0
         CycleLogs = []
@@ -43,25 +44,24 @@ class Server(BaseServer):
             CycleLogs.append(CycleEnd - CycleStart)
 
             Index += CurrentWindow
-        self.writeLogs("Cycle",CycleLogs)
+        self.writeLogs("Cycle", CycleLogs)
         self.writeLogs("Ack_rcv_time", self.rcvLogs)
 
     def checker(self, Segments, StartIndex, EndIndex):
         # StartIndex += 1  # to match the ACKs
         # EndIndex += 1
-        LastACK = 0
+        ReceivedACK = 0
 
-        while LastACK != EndIndex:
+        while ReceivedACK != EndIndex:
             try:
                 ReceivedACK = self.ackHandler()
-                if ReceivedACK == LastACK:
-                    logging.warning(f"dropped {LastACK} segment 😭")
+                if ReceivedACK in self.ACKed:
+                    logging.warning(f"dropped {ReceivedACK} segment 😭")
                     self.DroppedSegmentCount += 1
-                    self.send(self.clientPort, Segments[LastACK])
-                LastACK = ReceivedACK
+                    self.send(self.clientPort, Segments[ReceivedACK])
             except socket.timeout:
-                logging.warning(f"timed out ⏰, dropped segment {LastACK}")
-                self.send(self.clientPort, Segments[LastACK])
+                logging.warning(f"timed out ⏰, dropped segment {ReceivedACK}")
+                self.send(self.clientPort, Segments[ReceivedACK])
                 self.DroppedSegmentCount += 1
 
         logging.debug(f"received all ACKs {StartIndex} => {EndIndex}")
