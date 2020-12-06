@@ -6,7 +6,7 @@ import time
 import sys
 from func_timeout import func_timeout
 
-HOST = "127.0.0.2"  # TODO Change this so all hosts can work
+HOST = ""
 PORT = 8080
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
 SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
@@ -146,7 +146,7 @@ class BaseServer:
         self._postSendFile()
 
     def writeLogs(self, Name, Logs):
-        with open(Name + ".log", "w") as f:
+        with open("logs/" + Name + ".log", "w") as f:
             for Log in Logs:
                 f.write(str(Log*1000) + "\n")
         logging.debug(f"wrote ✍️  logs onto {Name}.log")
