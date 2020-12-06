@@ -13,6 +13,15 @@ DroppedSegmentCount = 0
 
 
 class Server(BaseServer):
+    rcvLogs = []
+    
+    def ackHandler(self):
+        start = time.time()
+        value = super().ackHandler()
+        end = time.time()
+        self.rcvLogs.append(end - start)
+        return value
+    
     def engine(self, Segments):
         Index = 0
         CycleLogs = []
@@ -35,9 +44,10 @@ class Server(BaseServer):
 
             Index += CurrentWindow
         self.writeLogs("Cycle",CycleLogs)
+        self.writeLogs("Ack_rcv_time", self.rcvLogs)
 
     def checker(self, Segments, StartIndex, EndIndex):
-        StartIndex += 1  # to match the ACKs
+        # StartIndex += 1  # to match the ACKs
         # EndIndex += 1
         LastACK = 0
 
