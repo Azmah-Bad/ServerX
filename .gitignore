@@ -1,3 +1,6 @@
 venv
 .idea
 clients/copy_*
+.DS_Store
+Playground
+.dist
