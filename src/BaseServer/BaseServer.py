@@ -4,14 +4,14 @@ import random
 import socket
 import time
 import sys
-from func_timeout import func_timeout
+from abc import abstractmethod
 
 HOST = ""
 PORT = 8080
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
 SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
 RTT = 0.005
-TIMEOUT = 0.01
+TIMEOUT = 0.012
 
 if "remote" in sys.argv:
     import pydevd_pycharm
@@ -76,10 +76,11 @@ class BaseServer:
         return [str((x // SEGMENT_SIZE) + 1).zfill(SEGMENT_ID_SIZE).encode() + data[x:x + SEGMENT_SIZE] for x in
                 range(0, len(data), SEGMENT_SIZE)]
 
-    def ackHandler(self):
+    def ackHandler(self,debug=True):
         # check for ACK
         rcvACK, _ = self.rcv(self.ServerSocket, 10)
-        # logging.debug(f"received ACK from client: {rcvACK.decode()}")
+        if debug:
+            logging.debug(f"received ACK from client: {rcvACK.decode()}")
 
         return int(rcvACK.decode()[3:9])
 
@@ -93,11 +94,11 @@ class BaseServer:
         ReceivedACKs = []
         for _ in range(len(Segments)):
             try:
-                ReceivedACK = func_timeout(RTT, self.ackHandler)
+                ReceivedACK = self.ackHandler()
                 if ReceivedACK == len(Segments):
                     break
                 ReceivedACKs.append(ReceivedACK)
-            except:
+            except socket.timeout:
                 logging.warning(f"timed out ⏲")
                 break
 
@@ -134,6 +135,7 @@ class BaseServer:
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
         logging.info(f"Transmission rate: {rate} MBps ")
 
+    @abstractmethod
     def engine(self, *args, **kwargs):
         raise NotImplementedError("Base server can't be used on it's own, you need inherit it into your own subclass "
                                   "and provide an engine to handle sending segments and receiving ACKs")

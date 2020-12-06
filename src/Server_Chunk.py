@@ -8,7 +8,7 @@ import time
 
 from BaseServer import BaseServer
 
-WINDOW_SIZE = 40  # on average we lose 1 segment per 20 segments
+WINDOW_SIZE = 20  # on average we lose 1 segment per 20 segments
 DroppedSegmentCount = 0
 
 
@@ -38,7 +38,8 @@ class Server(BaseServer):
             CycleStart = time.time()
 
             self.writer(Segments[Index:Index + CurrentWindow])  # sending all segments in all Current window
-            self.checker(Segments, Index, Index + CurrentWindow)
+            self.windowChecker(Segments, Index, Index + CurrentWindow)
+            logging.debug(f"received all ACKs {Index + 1} => {Index + CurrentWindow}")
 
             CycleEnd = time.time()
             CycleLogs.append(CycleEnd - CycleStart)
@@ -56,15 +57,48 @@ class Server(BaseServer):
             try:
                 ReceivedACK = self.ackHandler()
                 if ReceivedACK in self.ACKed:
-                    logging.warning(f"dropped {ReceivedACK} segment 😭")
+                    logging.warning(f"dropped {ReceivedACK + 1} segment 😭")
                     self.DroppedSegmentCount += 1
+                    # flush the socket
+                    for _ in range(WINDOW_SIZE - ReceivedACK):
+                        self.ackHandler()
                     self.send(self.clientPort, Segments[ReceivedACK])
+                    logging.debug(f"sending back segment {ReceivedACK + 1}")
+                self.ACKed.append(ReceivedACK)
             except socket.timeout:
                 logging.warning(f"timed out ⏰, dropped segment {ReceivedACK}")
                 self.send(self.clientPort, Segments[ReceivedACK])
                 self.DroppedSegmentCount += 1
 
-        logging.debug(f"received all ACKs {StartIndex} => {EndIndex}")
+    def windowChecker(self, Segments, StartIndex, EndIndex):
+        ACKs = []
+        for _ in range(WINDOW_SIZE - 1):
+            try:
+                ACKs.append(self.ackHandler())
+                if EndIndex in ACKs:
+                    return  # EndIndex already in list
+            except socket.timeout:
+                if ACKs:
+                    logging.warning(f"timed out ⏰, dropped segment {ACKs[-1] + 1}")
+
+        for Ack in ACKs:
+            if ACKs.count(Ack) != 1:  # Ack was dropped
+                logging.warning(f"dropped segment {Ack + 1} 😭")
+                toBeResent = Ack
+                isRecovered = False
+                while not isRecovered:
+                    self.send(self.clientPort, Segments[toBeResent])
+                    try:
+                        while True:
+                            ReceivedACK = self.ackHandler()
+                            if ReceivedACK == EndIndex:
+                                isRecovered = True
+                            else:
+                                toBeResent = ReceivedACK
+
+                    except socket.timeout:
+                        pass
+                break
 
 
 if __name__ == "__main__":
