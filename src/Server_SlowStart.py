@@ -3,19 +3,14 @@ out of 8100 packet client 1 dropped 547
 6 % chance of dropping a packet
 """
 
-import socket
 import logging
-import random
-import os
+import socket
 import sys
-
-import progressbar
-import time
-from func_timeout import func_timeout, FunctionTimedOut
-import matplotlib.pyplot as plt
+import argparse
 from BaseServer import BaseServer, isDropped
 
 INITIAL_CWINDOW = 1
+
 
 class Server(BaseServer):
 
@@ -32,7 +27,6 @@ class Server(BaseServer):
 
             CWindow = self.sendSegments(FlightSize, Segments, CWindow)
 
-
             logging.debug(f"CWindow: {CWindow}")
             Index += len(FlightSize)
 
@@ -45,7 +39,7 @@ class Server(BaseServer):
 
         ExpectedACK = FlightSize[-1]
         logging.debug(f"sent Segments {FlightSize[0] + 1} => {FlightSize[-1] + 1}")
-        
+
         CWindow = self.windowChecker(Segments, FlightSize[0], FlightSize[-1], CWindow)
 
         # while not ReceivedACK > ExpectedACK:
@@ -121,7 +115,6 @@ class Server(BaseServer):
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
                         level=logging.INFO if 'INFO' in sys.argv else logging.DEBUG)
-
 
     server = Server()
     server.handshake()

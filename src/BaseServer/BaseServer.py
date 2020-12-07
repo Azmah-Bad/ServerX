@@ -177,7 +177,7 @@ class BaseServer:
         Parser.add_argument("-v", "--verbose", type=int)
         Parser.add_argument("-p", "--port", type=int, default=self.PORT)
         Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
-        Parser.add_argument("-h", "--host", type=str, default="")
+        Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)
         Parser.add_argument("-q", "--quite", type=int, help="don't write log files")
 
