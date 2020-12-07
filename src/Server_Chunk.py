@@ -115,10 +115,5 @@ class Server(BaseServer):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
-                        level=logging.INFO if 'INFO' in sys.argv else logging.DEBUG)
-
     server = Server()
-    server.handshake()
-    server.sendFile()
-    server.checkFile()
+    server.run()

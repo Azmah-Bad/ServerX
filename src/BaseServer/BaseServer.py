@@ -3,33 +3,28 @@ import os
 import random
 import socket
 import time
-import sys
 from abc import abstractmethod
-
-HOST = ""
-PORT = 8080
-SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
-SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
-RTT = 0.005
-TIMEOUT = 0.01
-
-if "remote" in sys.argv:
-    import pydevd_pycharm
-
-    pydevd_pycharm.settrace('192.168.2.1', port=6969, stdoutToServer=True, stderrToServer=True)
+import argparse
 
 
 class BaseServer:
+    HOST = ""
+    PORT = 8080
+    SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
+    SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
+    RTT = 0.005
+    TIMEOUT = 0.01
+
     def __init__(self) -> None:
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
-        self.ServerSocket.bind((HOST, PORT))  # bind the socket to an address
+        self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
 
         self.NewPort = random.randint(1000, 9999)
         self.clientAddr = None
         self.clientPort = None
 
         self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
-        self.DataSocket.bind((HOST, self.NewPort))  # bind the socket to an address
+        self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
         logging.info("Socket binded with success")
 
         self.startTime = None
@@ -37,7 +32,7 @@ class BaseServer:
         self.fileName = None
         self.DroppedSegmentCount = 0
 
-        logging.info(f"Server listening at {PORT} 🙉")
+        logging.info(f"Server listening at {self.PORT} 🙉")
 
     def send(self, port, data):
         if type(data) == str:
@@ -49,8 +44,8 @@ class BaseServer:
         return Socket.recvfrom(bufferSize)
 
     def setTimeout(self):
-        self.ServerSocket.settimeout(TIMEOUT)
-        self.DataSocket.settimeout(TIMEOUT)
+        self.ServerSocket.settimeout(self.TIMEOUT)
+        self.DataSocket.settimeout(self.TIMEOUT)
 
     def handshake(self):
         handshakeBuffer = 12
@@ -73,10 +68,11 @@ class BaseServer:
 
     def _getSegments(self, data):
         """return: list of segments"""
-        return [str((x // SEGMENT_SIZE) + 1).zfill(SEGMENT_ID_SIZE).encode() + data[x:x + SEGMENT_SIZE] for x in
-                range(0, len(data), SEGMENT_SIZE)]
+        return [str((x // self.SEGMENT_SIZE) + 1).zfill(self.SEGMENT_ID_SIZE).encode() + data[x:x + self.SEGMENT_SIZE]
+                for x in
+                range(0, len(data), self.SEGMENT_SIZE)]
 
-    def ackHandler(self,debug=True):
+    def ackHandler(self, debug=True):
         # check for ACK
         rcvACK, _ = self.rcv(self.ServerSocket, 10)
         if debug:
@@ -128,12 +124,14 @@ class BaseServer:
     def _postSendFile(self):
         self.send(self.clientPort, "FIN")
         self.endTime = time.time()
+        TotalTime = int((self.endTime - self.startTime) * 1000)
         logging.info(f"File {self.fileName} send with success 🎉")
-        logging.info(f"Total time to send file {int((self.endTime - self.startTime) * 1000)} ms 🐢")
+        logging.info(f"Total time to send file {TotalTime} ms 🐢")
         rate = "{:.2f}".format(
             round(os.stat(self.fileName).st_size / int((self.endTime - self.startTime) * (10 ** 6)), 2))
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
         logging.info(f"Transmission rate: {rate} MBps ")
+        return rate, TotalTime, self.DroppedSegmentCount
 
     @abstractmethod
     def engine(self, *args, **kwargs):
@@ -145,12 +143,12 @@ class BaseServer:
 
         self.engine(segments)
 
-        self._postSendFile()
+        return self._postSendFile()
 
     def writeLogs(self, Name, Logs):
         with open("logs/" + Name + ".log", "w") as f:
             for Log in Logs:
-                f.write(str(Log*1000) + "\n")
+                f.write(str(Log * 1000) + "\n")
         logging.debug(f"wrote ✍️  logs onto {Name}.log")
 
     def checkFile(self):
@@ -174,3 +172,27 @@ class BaseServer:
             if index == len(File1) - 1:
                 logging.info("No difference, files are identical 🥳")
 
+    def run(self):
+        Parser = argparse.ArgumentParser()
+        Parser.add_argument("-v", "--verbose", type=int)
+        Parser.add_argument("-p", "--port", type=int, default=self.PORT)
+        Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
+        Parser.add_argument("-h", "--host", type=str, default="")
+        Parser.add_argument("--remote_debugger", type=str)
+        Parser.add_argument("-q", "--quite", type=int, help="don't write log files")
+
+        Args = Parser.parse_args()
+
+        logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
+                            level=logging.DEBUG if Args.verbose else logging.DEBUG)
+        self.TIMEOUT = Args.timeout
+        self.PORT = Args.PORT
+        self.HOST = Args.host
+
+        if Args.remote_debugger:
+            import pydevd_pycharm
+            pydevd_pycharm.settrace(Args.remote_debugger, port=6969, stdoutToServer=True, stderrToServer=True)
+
+        self.ackHandler()
+        self.sendFile()
+        self.checkFile()
