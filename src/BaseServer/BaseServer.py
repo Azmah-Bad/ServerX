@@ -16,23 +16,25 @@ class BaseServer:
     TIMEOUT = 0.01
 
     def __init__(self) -> None:
-        self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
-        self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
+        self.ServerSocket = None
+        self.DataSocket = None
 
         self.NewPort = random.randint(1000, 9999)
         self.clientAddr = None
         self.clientPort = None
-
-        self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
-        self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
-        logging.info("Socket binded with success")
 
         self.startTime = None
         self.endTime = None
         self.fileName = None
         self.DroppedSegmentCount = 0
 
-        logging.info(f"Server listening at {self.PORT} 🙉")
+    def initSockets(self):
+        self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
+        self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
+
+        self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
+        self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
+        logging.info(f"Server listening at {self.HOST} port {self.PORT} 🙉")
 
     def send(self, port, data):
         if type(data) == str:
@@ -189,6 +191,8 @@ class BaseServer:
         self.TIMEOUT = Args.timeout
         self.PORT = Args.port
         self.HOST = Args.host
+
+        self.initSockets()
 
         if Args.remote_debugger:
             import pydevd_pycharm
