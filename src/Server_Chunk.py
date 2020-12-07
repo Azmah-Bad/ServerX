@@ -6,7 +6,7 @@ import logging
 import socket
 import time
 
-from BaseServer import BaseServer
+from BaseServer import BaseServer, isDropped
 
 WINDOW_SIZE = 40  # on average we lose 1 segment per 20 segments
 DroppedSegmentCount = 0
@@ -72,11 +72,21 @@ class Server(BaseServer):
 
     def windowChecker(self, Segments, StartIndex, EndIndex):
         ACKs = []
-        for _ in range(WINDOW_SIZE):
+        Index = 0
+        isMultipleACKs = False
+        while Index < WINDOW_SIZE:
             try:
                 ACKs.append(self.ackHandler())
                 if EndIndex in ACKs:
                     return  # EndIndex already in list
+
+                if isDropped(ACKs) and not isMultipleACKs:
+                    Index += 1
+                    isMultipleACKs = True
+                    logging.warning(f"a segment has been dropped, skipping last ACK listen")
+
+                Index += 1
+
             except socket.timeout:
                 if ACKs:
                     logging.warning(f"timed out ⏰, dropped segment {ACKs[-1] + 1}")
