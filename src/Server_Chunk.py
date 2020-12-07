@@ -4,11 +4,12 @@ out of 8100 packet client 1 dropped 547
 """
 import logging
 import socket
+import sys
 import time
 
 from BaseServer import BaseServer, isDropped
 
-WINDOW_SIZE = 40  # on average we lose 1 segment per 20 segments
+WINDOW_SIZE = 90  # on average we lose 1 segment per 100 segments
 DroppedSegmentCount = 0
 
 
@@ -76,12 +77,12 @@ class Server(BaseServer):
         isMultipleACKs = False
         while Index < WINDOW_SIZE:
             try:
-                ACKs.append(self.ackHandler())
+                ACKs.append(self.ackHandler(True))
                 if EndIndex in ACKs:
                     return  # EndIndex already in list
 
                 if isDropped(ACKs) and not isMultipleACKs:
-                    Index += 1
+                    Index += 2
                     isMultipleACKs = True
                     logging.warning(f"a segment has been dropped, skipping last ACK listen")
 
@@ -102,7 +103,7 @@ class Server(BaseServer):
                     self.DroppedSegmentCount += 1
                     try:
                         while True:
-                            ReceivedACK = self.ackHandler()
+                            ReceivedACK = self.ackHandler(True)
                             if ReceivedACK == EndIndex:
                                 isRecovered = True
                             else:
@@ -115,7 +116,7 @@ class Server(BaseServer):
 
 if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
-                        level=logging.DEBUG)
+                        level=logging.INFO if 'INFO' in sys.argv else logging.DEBUG)
 
     server = Server()
     server.handshake()

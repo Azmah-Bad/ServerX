@@ -11,7 +11,7 @@ PORT = 8080
 SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
 SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
 RTT = 0.005
-TIMEOUT = 0.012
+TIMEOUT = 0.01
 
 if "remote" in sys.argv:
     import pydevd_pycharm
