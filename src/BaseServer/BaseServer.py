@@ -187,7 +187,7 @@ class BaseServer:
         Args = Parser.parse_args()
 
         logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
-                            level=logging.DEBUG if Args.verbose else logging.DEBUG)
+                            level=logging.DEBUG if Args.verbose else logging.INFO)
         self.TIMEOUT = Args.timeout
         self.PORT = Args.port
         self.HOST = Args.host
@@ -202,5 +202,5 @@ class BaseServer:
             self.handshake()
             self.sendFile()
             self.checkFile()
-            if Args.forever:
+            if not Args.forever:
                 break
