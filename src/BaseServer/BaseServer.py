@@ -180,6 +180,7 @@ class BaseServer:
         Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)
         Parser.add_argument("-q", "--quite", type=int, help="don't write log files")
+        Parser.add_argument("-f", "--forever", type=int, help="runs the server forever")
 
         Args = Parser.parse_args()
 
@@ -193,6 +194,9 @@ class BaseServer:
             import pydevd_pycharm
             pydevd_pycharm.settrace(Args.remote_debugger, port=6969, stdoutToServer=True, stderrToServer=True)
 
-        self.ackHandler()
-        self.sendFile()
-        self.checkFile()
+        while True:
+            self.handshake()
+            self.sendFile()
+            self.checkFile()
+            if Args.forever:
+                break
