@@ -186,7 +186,7 @@ class BaseServer:
         logging.basicConfig(format='%(asctime)s--[%(levelname)s]: %(message)s',
                             level=logging.DEBUG if Args.verbose else logging.DEBUG)
         self.TIMEOUT = Args.timeout
-        self.PORT = Args.PORT
+        self.PORT = Args.port
         self.HOST = Args.host
 
         if Args.remote_debugger:
