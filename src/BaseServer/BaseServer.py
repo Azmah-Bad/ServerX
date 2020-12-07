@@ -5,6 +5,7 @@ import socket
 import time
 from abc import abstractmethod
 import argparse
+import threading
 
 
 class BaseServer:
@@ -13,7 +14,8 @@ class BaseServer:
     SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
     SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
     RTT = 0.005
-    TIMEOUT = 0.01
+    TIMEOUT = 0.007
+    isTraining = False
 
     def __init__(self) -> None:
         self.ServerSocket = None
@@ -82,10 +84,18 @@ class BaseServer:
 
         return int(rcvACK.decode()[3:9])
 
-    def writer(self, Segments):
-        # logging.info("sending all segments")
-        for Segment in Segments:
-            self.send(self.clientPort, Segment)
+    def writer(self, Segments: list):
+        """
+        a launch a thread that will send all the Segments
+        :param Segments: list of to be sent segments
+        :return: None
+        """
+
+        def massSender(Segments):
+            for Segment in Segments:
+                self.send(self.clientPort, Segment)
+        # massSender(Segments)
+        threading.Thread(target=massSender, args=(Segments,), name="writerThread").start()
 
     def reader(self, Segments):
         LastACK = 0
@@ -109,8 +119,11 @@ class BaseServer:
         self.fileName = message.decode()[:-1]
         logging.info(f"file name received {self.fileName}")
 
+        if self.isTraining:
+            self.fileName = "src/10mb.jpg"
+
         if not os.path.exists(self.fileName):
-            raise FileNotFoundError("file requested couldn't be found")
+            raise FileNotFoundError(f"file {self.fileName} requested couldn't be found")
 
         with open(self.fileName, "rb") as f:
             file = f.read()
@@ -133,7 +146,7 @@ class BaseServer:
             round(os.stat(self.fileName).st_size / int((self.endTime - self.startTime) * (10 ** 6)), 2))
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
         logging.info(f"Transmission rate: {rate} MBps ")
-        return rate, TotalTime, self.DroppedSegmentCount
+        return rate, TotalTime
 
     @abstractmethod
     def engine(self, *args, **kwargs):
@@ -148,6 +161,8 @@ class BaseServer:
         return self._postSendFile()
 
     def writeLogs(self, Name, Logs):
+        if self.isTraining:
+            return
         with open("logs/" + Name + ".log", "w") as f:
             for Log in Logs:
                 f.write(str(Log * 1000) + "\n")
@@ -156,6 +171,8 @@ class BaseServer:
     def checkFile(self):
         FilePath1 = self.fileName
         FilePath2 = f"../clients/copy_{self.fileName}"
+        if self.isTraining:
+            FilePath2 = "clients/copy_10mb.jpg"
 
         with open(FilePath1, "rb") as f:
             File1 = f.read()
@@ -166,17 +183,26 @@ class BaseServer:
         if len(File1) != len(File2):
             logging.warning(f"Different file sizes: original {len(File1)} copy: {len(File2)}")
             logging.warning(f"missing bites {len(File1) - len(File2)}")
+            return False
 
         for index in range(len(File1)):
             if File1[index] != File2[index]:
                 logging.warning(f"First difference at segment {index // 15000}")
-                break
+                return False
             if index == len(File1) - 1:
                 logging.info("No difference, files are identical 🥳")
+                return True
+
+    def train(self):
+        self.initSockets()
+        self.handshake()
+        Rate, TotalTime = self.sendFile()
+        isCorrect = self.checkFile()
+        return Rate, TotalTime, self.DroppedSegmentCount, isCorrect
 
     def run(self):
         Parser = argparse.ArgumentParser()
-        Parser.add_argument("-v", "--verbose", type=int)
+        Parser.add_argument("-v", "--verbose", action="store_true")
         Parser.add_argument("-p", "--port", type=int, default=self.PORT)
         Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
         Parser.add_argument("--host", type=str, default="")
