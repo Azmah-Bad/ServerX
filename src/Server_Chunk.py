@@ -8,7 +8,7 @@ import time
 
 from BaseServer import BaseServer
 
-WINDOW_SIZE = 20  # on average we lose 1 segment per 20 segments
+WINDOW_SIZE = 40  # on average we lose 1 segment per 20 segments
 DroppedSegmentCount = 0
 
 
@@ -33,7 +33,7 @@ class Server(BaseServer):
             if RemainingSegmentsCount < WINDOW_SIZE:
                 CurrentWindow = RemainingSegmentsCount
 
-            logging.debug(f"send segments {Index} => {Index + CurrentWindow}")
+            logging.debug(f"send segments {Index + 1} => {Index + CurrentWindow}")
 
             CycleStart = time.time()
 
@@ -72,7 +72,7 @@ class Server(BaseServer):
 
     def windowChecker(self, Segments, StartIndex, EndIndex):
         ACKs = []
-        for _ in range(WINDOW_SIZE - 1):
+        for _ in range(WINDOW_SIZE):
             try:
                 ACKs.append(self.ackHandler())
                 if EndIndex in ACKs:
@@ -80,6 +80,7 @@ class Server(BaseServer):
             except socket.timeout:
                 if ACKs:
                     logging.warning(f"timed out ⏰, dropped segment {ACKs[-1] + 1}")
+                    break
 
         for Ack in ACKs:
             if ACKs.count(Ack) != 1:  # Ack was dropped
@@ -88,6 +89,7 @@ class Server(BaseServer):
                 isRecovered = False
                 while not isRecovered:
                     self.send(self.clientPort, Segments[toBeResent])
+                    self.DroppedSegmentCount += 1
                     try:
                         while True:
                             ReceivedACK = self.ackHandler()
