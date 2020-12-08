@@ -5,10 +5,10 @@ out of 8100 packet client 1 dropped 547
 
 import socket
 import logging
-from BaseServer import BaseServer
+from .BaseServer import BaseServer
 
 
-class Server(BaseServer):
+class IncrementalServer(BaseServer):
     def engine(self, Segments, *args, **kwargs):
         LastACK = 0
         for Index, Segment in enumerate(Segments):
@@ -30,5 +30,5 @@ class Server(BaseServer):
 
 
 if __name__ == "__main__":
-    server = Server()
+    server = IncrementalServer()
     server.run()

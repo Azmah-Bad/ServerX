@@ -2,9 +2,9 @@ import logging
 
 from runner import runner
 import argparse
-from src import SlowStartServer, WindowServer
+from src import SlowStartServer, WindowServer, IncrementalServer
 
-RUN_COUNTER = 3
+RUN_COUNTER = 1
 VERBOSE = True
 
 
@@ -34,23 +34,28 @@ def multiRunner(Server, Client: int = 1, **kwargs):
 
 if __name__ == '__main__':
     Parser = argparse.ArgumentParser()
-    Parser.add_argument("-v", "--verbose", action="store_false")
+    Parser.add_argument("-q", "--quite", action="store_false")
     Parser.add_argument("-d", "--debug", action="store_false")
-    Parser.add_argument("-c", "--count", type=int, default=RUN_COUNTER)
-    Parser.add_argument("-m", "--mode", type=str, default="all", choices=["all", "slowStart", "Window"])
+    Parser.add_argument("-t", "--times", type=int, default=RUN_COUNTER)
+    Parser.add_argument("-m", "--mode", type=str, default="window",
+                        choices=["all", "slowStart", "window", "incremental",
+                                 "ss", "w", "i"])
+    Parser.add_argument("-c","--client", default=1, type=int)
 
     Args = Parser.parse_args()
     RUN_COUNTER = Args.count
-    VERBOSE = Args.verbose
+    VERBOSE = Args.quite
     ToBeRun = []
     if Args.debug:
         logging.getLogger().disabled = True
     if Args.mode == "all":
         ToBeRun = [SlowStartServer, WindowServer]
-    if Args.mode == "slowStart":
+    if Args.mode in ["slowStart", "ss"]:
         ToBeRun = [SlowStartServer]
-    if Args.mode == "Window":
+    if Args.mode in ["window", "W"]:
         ToBeRun = [WindowServer]
+    if Args.mode in ["incremental", "i"]:
+        ToBeRun = [IncrementalServer]
 
     for ToBeRunServer in ToBeRun:
-        Results = multiRunner(ToBeRunServer)
+        Results = multiRunner(ToBeRunServer,Client=Args.client)

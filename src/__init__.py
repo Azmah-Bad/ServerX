@@ -1,3 +1,4 @@
 from .BaseServer import *
-from .Server_window import Server as WindowServer
-from .Server_SlowStart import Server as SlowStartServer
+from .Server_window import WindowServer
+from .Server_SlowStart import SlowStartServer
+from .Server_incrementally import IncrementalServer

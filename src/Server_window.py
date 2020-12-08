@@ -10,7 +10,7 @@ import time
 from .BaseServer import BaseServer, isDropped
 
 
-class Server(BaseServer):
+class WindowServer(BaseServer):
     WINDOW_SIZE = 60  # on average we lose 1 segment per 100 segments
     rcvLogs = []
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
@@ -115,5 +115,5 @@ class Server(BaseServer):
 
 
 if __name__ == "__main__":
-    server = Server()
+    server = WindowServer()
     server.run()

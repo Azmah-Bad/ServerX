@@ -12,7 +12,7 @@ from .BaseServer import BaseServer, isDropped
 INITIAL_CWINDOW = 1
 
 
-class Server(BaseServer):
+class SlowStartServer(BaseServer):
 
     def engine(self, Segments):
         Index = 0
@@ -113,6 +113,6 @@ class Server(BaseServer):
 
 
 if __name__ == "__main__":
-    server = Server()
+    server = SlowStartServer()
     server.run()
 
