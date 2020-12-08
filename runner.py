@@ -24,7 +24,7 @@ def serverRunner(Server):
     CurrentResult = Server.train()
 
 
-def runner(Server, ClientID=1, *args, **kwargs) -> tuple:
+def runner(Server, ClientID=1, *args, **kwargs):
     """
     runs server and client
     :param ClientID: client's ID either 1 or 2
@@ -45,7 +45,7 @@ def runner(Server, ClientID=1, *args, **kwargs) -> tuple:
     ClientHandler.start()
     ServerRunner.join()
     global CurrentResult
-    print(CurrentResult)
+    return CurrentResult
 
 
 if __name__ == '__main__':

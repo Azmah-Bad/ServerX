@@ -7,7 +7,7 @@ import logging
 import socket
 import sys
 import argparse
-from BaseServer import BaseServer, isDropped
+from .BaseServer import BaseServer, isDropped
 
 INITIAL_CWINDOW = 1
 

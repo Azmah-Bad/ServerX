@@ -7,22 +7,20 @@ import socket
 import sys
 import time
 
-from BaseServer import BaseServer, isDropped
-
-WINDOW_SIZE = 90  # on average we lose 1 segment per 100 segments
-DroppedSegmentCount = 0
+from .BaseServer import BaseServer, isDropped
 
 
 class Server(BaseServer):
+    WINDOW_SIZE = 60  # on average we lose 1 segment per 100 segments
     rcvLogs = []
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
 
-    def ackHandler(self, debug=True):
-        start = time.time()
-        value = super().ackHandler(debug)
-        end = time.time()
-        self.rcvLogs.append(end - start)
-        return value
+    # def ackHandler(self, debug=True):
+    #     start = time.time()
+    #     value = super().ackHandler(debug)
+    #     end = time.time()
+    #     self.rcvLogs.append(end - start)
+    #     return value
 
     def engine(self, Segments):
         Index = 0
@@ -30,8 +28,8 @@ class Server(BaseServer):
         while Index < len(Segments):
             RemainingSegmentsCount = len(Segments[Index:])
 
-            CurrentWindow = WINDOW_SIZE
-            if RemainingSegmentsCount < WINDOW_SIZE:
+            CurrentWindow = self.WINDOW_SIZE
+            if RemainingSegmentsCount < self.WINDOW_SIZE:
                 CurrentWindow = RemainingSegmentsCount
 
             logging.debug(f"send segments {Index + 1} => {Index + CurrentWindow}")
@@ -50,10 +48,7 @@ class Server(BaseServer):
         self.writeLogs("Ack_rcv_time", self.rcvLogs)
 
     def checker(self, Segments, StartIndex, EndIndex):
-        # StartIndex += 1  # to match the ACKs
-        # EndIndex += 1
         ReceivedACK = 0
-
         while ReceivedACK != EndIndex:
             try:
                 ReceivedACK = self.ackHandler()
@@ -61,7 +56,7 @@ class Server(BaseServer):
                     logging.warning(f"dropped {ReceivedACK + 1} segment 😭")
                     self.DroppedSegmentCount += 1
                     # flush the socket
-                    for _ in range(WINDOW_SIZE - ReceivedACK):
+                    for _ in range(self.WINDOW_SIZE - ReceivedACK):
                         self.ackHandler()
                     self.send(self.clientPort, Segments[ReceivedACK])
                     logging.debug(f"sending back segment {ReceivedACK + 1}")
@@ -75,7 +70,8 @@ class Server(BaseServer):
         ACKs = []
         Index = 0
         isMultipleACKs = False
-        while Index < WINDOW_SIZE:
+        TimeoutCountdown = 3
+        while Index < self.WINDOW_SIZE:
             try:
                 ACKs.append(self.ackHandler(True))
                 if EndIndex in ACKs:
@@ -91,7 +87,11 @@ class Server(BaseServer):
             except socket.timeout:
                 if ACKs:
                     logging.warning(f"timed out ⏰, dropped segment {ACKs[-1] + 1}")
-                    break
+                    Index += 1
+                    TimeoutCountdown -= 1
+                    if TimeoutCountdown == 0:
+                        break
+                    pass
 
         for Ack in ACKs:
             if ACKs.count(Ack) != 1:  # Ack was dropped
