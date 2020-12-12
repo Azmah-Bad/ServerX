@@ -3,9 +3,10 @@ import logging
 from runner import runner
 import argparse
 from src import SlowStartServer, WindowServer, IncrementalServer
+from func_timeout import func_set_timeout
 
 RUN_COUNTER = 1
-VERBOSE = True
+VERBOSE = False
 
 
 def multiRunner(Server, Client: int = 1, **kwargs):
@@ -13,7 +14,7 @@ def multiRunner(Server, Client: int = 1, **kwargs):
         print(f"running tests on {Server.__name__.upper()}...")
     Results = []
     for _ in range(RUN_COUNTER):
-        Results.append(runner(Server, Client, kwargs))
+        Results.append(runner(Server, Client, **kwargs))
 
     Rates = []
     Times = []
@@ -40,10 +41,10 @@ if __name__ == '__main__':
     Parser.add_argument("-m", "--mode", type=str, default="window",
                         choices=["all", "slowStart", "window", "incremental",
                                  "ss", "w", "i"])
-    Parser.add_argument("-c","--client", default=1, type=int)
+    Parser.add_argument("-c", "--client", default=1, type=int)
 
     Args = Parser.parse_args()
-    RUN_COUNTER = Args.count
+    RUN_COUNTER = Args.times
     VERBOSE = Args.quite
     ToBeRun = []
     if Args.debug:
@@ -58,4 +59,4 @@ if __name__ == '__main__':
         ToBeRun = [IncrementalServer]
 
     for ToBeRunServer in ToBeRun:
-        Results = multiRunner(ToBeRunServer,Client=Args.client)
+        Results = multiRunner(ToBeRunServer, Client=Args.client, TIMEOUT=0.020)
