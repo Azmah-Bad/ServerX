@@ -17,15 +17,18 @@ CurrentResult = None
 
 
 class ClientRunner(threading.Thread):
-    def __init__(self, ClientID):
+    def __init__(self, ClientID, port=8080):
         super().__init__()
         self.name = "ClientRunner"
         self.Subprocess = None
         self.ClientID = ClientID
+        self.port = port
 
     # @func_set_timeout(5)
     def run(self) -> None:
-        self.Subprocess = subprocess.run([f"clients/client{self.ClientID}"] + CLIENT_ARGUMENTS)
+        Args = CLIENT_ARGUMENTS
+        Args[2] = str(self.port)
+        self.Subprocess = subprocess.run([f"clients/client{self.ClientID}"] + Args)
 
     def kill(self):
         self.Subprocess.terminate()
@@ -36,9 +39,10 @@ def serverRunner(Server):
     CurrentResult = Server.train()
 
 
-def runner(Server, ClientID=1, *args, **kwargs):
+def runner(Server, ClientID=1,port=8080, *args, **kwargs):
     """
     runs server and client
+    :param port:
     :param ClientID: client's ID either 1 or 2
     :param Server: the server
     :param args:

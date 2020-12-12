@@ -25,7 +25,6 @@ widgets = [
 progressbar.streams.wrap_stderr()
 Fieldnames = ['Window', 'Timeout', 'Transmission rate', 'time', 'DroppedSegments']
 
-
 logging.getLogger().disabled = True
 
 
@@ -41,18 +40,17 @@ def trainer():
         for Window in WINDOW_SIZE_POOL:
             for Timeout in TIMEOUT_POOL:
                 try:
-                    print("===============================================================")
-                    print(f"TESTING WITH WINDOW:{Window}, TIMEOUT:{Timeout}...")
-
-                    Result = func_timeout(30, multiRunner, (WindowServer,), {"TIMEOUT": Timeout, "WINDOW_SIZE": Window})
+                    print(f"\nTESTING WITH WINDOW:{Window}, TIMEOUT:{Timeout}...")
+                    port = 4200 + Counter
+                    Result = func_timeout(30, multiRunner, (WindowServer,),
+                                          {"port": port, "TIMEOUT": Timeout, "WINDOW_SIZE": Window})
 
                     print(
-                        f"RESULTS WITH WINDOW:{Window}, TIMEOUT:{Timeout} :: {Result[0]} Mbps {Result[1]} s {Result} dp")
+                        f"RESULTS WITH WINDOW:{Window}, TIMEOUT:{Timeout} :: {Result[0]} Mbps {Result[1]} s {Result[2]} dp")
                 except:
                     subprocess.run(['sudo', 'killall', 'client1'])
                     Result = (-1, -1, -1)
                     print(f"EXCEPTION OCCURRED WHEN TESTING WITH WINDOW:{Window}, TIMEOUT:{Timeout}...")
-                print("===============================================================")
                 Results.append({
                     'Window': Window,
                     'Timeout': Timeout,
