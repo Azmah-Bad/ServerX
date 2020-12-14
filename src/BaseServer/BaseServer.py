@@ -29,6 +29,7 @@ class BaseServer:
         self.endTime = None
         self.fileName = None
         self.DroppedSegmentCount = 0
+        self.Segments = []
 
     def initSockets(self):
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
@@ -46,6 +47,19 @@ class BaseServer:
 
     def rcv(self, Socket, bufferSize):
         return Socket.recvfrom(bufferSize)
+
+    def sendSegment(self, index: int) -> None:
+        self.send(self.clientPort, self.Segments[index])
+
+    def sendSegmentThread(self, index: int):
+        """
+        send a segment in a seperate thread
+        :param index: index of the segment that is going to be sent
+        :return: The thread that os sending the segment
+        """
+        mSenderThread = threading.Thread(target=self.sendSegment, name=f"sender{index + 1}", args=(index,))
+        mSenderThread.start()
+        return mSenderThread
 
     def setTimeout(self):
         self.ServerSocket.settimeout(self.TIMEOUT)
@@ -72,17 +86,21 @@ class BaseServer:
 
     def _getSegments(self, data):
         """return: list of segments"""
-        return [str((x // self.SEGMENT_SIZE) + 1).zfill(self.SEGMENT_ID_SIZE).encode() + data[x:x + self.SEGMENT_SIZE]
-                for x in
-                range(0, len(data), self.SEGMENT_SIZE)]
+        self.Segments = [
+            str((x // self.SEGMENT_SIZE) + 1).zfill(self.SEGMENT_ID_SIZE).encode() + data[x:x + self.SEGMENT_SIZE]
+            for x in range(0, len(data), self.SEGMENT_SIZE)]
+        return self.Segments
 
     def ackHandler(self, debug=True):
         # check for ACK
         rcvACK, _ = self.rcv(self.ServerSocket, 10)
-        if debug:
+        if debug:  # spams a lot
             logging.debug(f"received ACK from client: {rcvACK.decode()}")
-
-        return int(rcvACK.decode()[3:9])
+        try:
+            return int(rcvACK.decode()[3:9])
+        except:
+            print(rcvACK.decode())
+            raise ValueError(rcvACK.decode())
 
     def writer(self, Segments: list):
         """
@@ -94,6 +112,7 @@ class BaseServer:
         def massSender(Segments):
             for Segment in Segments:
                 self.send(self.clientPort, Segment)
+
         # massSender(Segments)
         threading.Thread(target=massSender, args=(Segments,), name="writerThread").start()
 

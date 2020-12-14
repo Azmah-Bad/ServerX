@@ -68,7 +68,7 @@ def trainer():
     BestPerf = Results[0]
     for Result in Results:
         if Result['Transmission rate'] > BestPerf['Transmission rate']:
-            BestPerf = Result['Transmission rate']
+            BestPerf = Result
 
     print(f"BEST PERFORMANCE...")
     print(BestPerf)

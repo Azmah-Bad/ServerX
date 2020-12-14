@@ -7,11 +7,12 @@ import socket
 import sys
 import time
 
-from .BaseServer import BaseServer, isDropped
+from BaseServer import BaseServer, isDropped
 
 
 class WindowServer(BaseServer):
-    WINDOW_SIZE = 60  # on average we lose 1 segment per 100 segments
+    WINDOW_SIZE = 75  # on average we lose 1 segment per 100 segments
+    TIMEOUT = 0.006
     rcvLogs = []
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
 
@@ -37,7 +38,7 @@ class WindowServer(BaseServer):
             CycleStart = time.time()
 
             self.writer(Segments[Index:Index + CurrentWindow])  # sending all segments in all Current window
-            self.windowChecker(Segments, Index, Index + CurrentWindow)
+            self.windowInspector(Segments, Index, Index + CurrentWindow)
             logging.debug(f"received all ACKs {Index + 1} => {Index + CurrentWindow}")
 
             CycleEnd = time.time()
@@ -67,7 +68,16 @@ class WindowServer(BaseServer):
                 self.DroppedSegmentCount += 1
 
     def windowChecker(self, Segments, StartIndex, EndIndex):
-        ACKs = []
+        """
+        receives all the ACKs and resend segments
+        :param Segments: all the segments
+        :param StartIndex: index of the first segment sent in the current window
+        :param EndIndex: index of the last segment sent in the current window
+        :return: None
+        """
+
+        # RECEIVE BLOCK
+        ACKs = []  # a list of received ACK
         Index = 0
         isMultipleACKs = False
         TimeoutCountdown = 3
@@ -77,22 +87,26 @@ class WindowServer(BaseServer):
                 if EndIndex in ACKs:
                     return  # EndIndex already in list
 
-                if isDropped(ACKs) and not isMultipleACKs:
+                if isDropped(ACKs) and not isMultipleACKs:  # a segment was dropped
                     Index += 2
                     isMultipleACKs = True
                     logging.warning(f"a segment has been dropped, skipping last ACK listen")
 
                 Index += 1
 
-            except socket.timeout:
+            except socket.timeout:  # socket rcv timed out
                 if ACKs:
                     logging.warning(f"timed out ⏰, dropped segment {ACKs[-1] + 1}")
                     Index += 1
                     TimeoutCountdown -= 1
                     if TimeoutCountdown == 0:
+                        self.sendSegment(ACKs[-1])
+                        logging.debug(f"sending back segment {ACKs[-1] + 1}")
                         break
                     pass
+        # END BLOCK
 
+        # RESENDING BLOCK
         for Ack in ACKs:
             if ACKs.count(Ack) != 1:  # Ack was dropped
                 logging.warning(f"dropped segment {Ack + 1} 😭")
@@ -111,7 +125,37 @@ class WindowServer(BaseServer):
 
                     except socket.timeout:
                         pass
-                break
+                break  # stop from resending other
+        # END BLOCK
+
+    def windowInspector(self, Segments, StartIndex, EndIndex):
+        """
+        receives all the ACKs and resend segments
+        :param Segments: all the segments
+        :param StartIndex: index of the first segment sent in the current window
+        :param EndIndex: index of the last segment sent in the current window
+        :return: None
+        """
+        ACKd = []
+        ReceivedACK = 0
+        while True:
+            try:
+                ReceivedACK = self.ackHandler(True)
+
+                if ReceivedACK == EndIndex:  # received last expected ACK in the Window
+                    break
+
+                if ReceivedACK in ACKd:  # received an ACK twice
+                    logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
+                    self.sendSegmentThread(ReceivedACK)
+                    self.DroppedSegmentCount += 1
+
+                ACKd.append(ReceivedACK)
+
+            except socket.timeout:
+                logging.warning(f"timed out ⏰, resending {ReceivedACK +1}...")
+                self.sendSegmentThread(ReceivedACK)
+                self.DroppedSegmentCount += 1
 
 
 if __name__ == "__main__":
