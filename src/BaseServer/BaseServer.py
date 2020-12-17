@@ -6,6 +6,7 @@ import time
 from abc import abstractmethod
 import argparse
 import threading
+import multiprocessing
 
 
 class BaseServer:
@@ -44,7 +45,6 @@ class BaseServer:
                 logging.warning(f"Port {self.NewPort} already in use, switch to another port")
                 self.NewPort = random.randint(1000, 9999)
 
-
     def send(self, port, data):
         if type(data) == str:
             self.ServerSocket.sendto(str.encode(data), (self.clientAddr, port))
@@ -71,15 +71,21 @@ class BaseServer:
         self.ServerSocket.settimeout(self.TIMEOUT)
         self.DataSocket.settimeout(self.TIMEOUT)
 
+    def unsetTimeout(self):
+        self.ServerSocket.settimeout(None)
+        self.DataSocket.settimeout(None)
+
+    def connect(self):
+        handshakeBuffer = 12
+        while True:
+            message, address = self.rcv(self.ServerSocket, handshakeBuffer)
+            self.clientAddr, self.clientPort = address
+            if b"SYN" in message:
+                logging.debug(f"SYN Received from {address}")
+                break
+
     def handshake(self):
         handshakeBuffer = 12
-        message, address = self.rcv(self.ServerSocket, handshakeBuffer)
-        self.clientAddr, self.clientPort = address
-        if b"SYN" in message:
-            logging.debug(f"SYN Received from {address}")
-        else:
-            raise ConnectionRefusedError
-
         self.send(self.clientPort, f"SYN-ACK{self.NewPort}")
         logging.debug(f"SYN-ACK sent 🚀")
 
@@ -171,6 +177,8 @@ class BaseServer:
             round(os.stat(self.fileName).st_size / int((self.endTime - self.startTime) * (10 ** 6)), 2))
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
         logging.info(f"Transmission rate: {rate} MBps ")
+        # self.ServerSocket.close()
+        # self.DataSocket.close()
         return rate, TotalTime
 
     @abstractmethod
@@ -225,6 +233,10 @@ class BaseServer:
         isCorrect = self.checkFile()
         return Rate, TotalTime, self.DroppedSegmentCount, isCorrect
 
+    def clientHandler(self):
+        self.handshake()
+        self.sendFile()
+
     def run(self):
         Parser = argparse.ArgumentParser()
         Parser.add_argument("-v", "--verbose", action="store_true")
@@ -233,7 +245,7 @@ class BaseServer:
         Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)
         Parser.add_argument("-q", "--quite", type=int, help="don't write log files")
-        Parser.add_argument("-f", "--forever", type=int, help="runs the server forever")
+        Parser.add_argument("--verify", action="store_true")
 
         Args = Parser.parse_args()
 
@@ -250,8 +262,8 @@ class BaseServer:
             pydevd_pycharm.settrace(Args.remote_debugger, port=6969, stdoutToServer=True, stderrToServer=True)
 
         while True:
-            self.handshake()
-            self.sendFile()
-            self.checkFile()
-            if not Args.forever:
-                break
+            self.connect()
+            self.clientHandler()
+            self.unsetTimeout()
+            if Args.verify:
+                self.checkFile()
