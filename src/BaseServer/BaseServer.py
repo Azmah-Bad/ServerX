@@ -34,10 +34,16 @@ class BaseServer:
     def initSockets(self):
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
         self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
+        while True:
+            try:
+                self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
+                self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
+                logging.info(f"Server listening at {self.HOST} port {self.PORT} 🙉")
+                break
+            except OSError:
+                logging.warning(f"Port {self.NewPort} already in use, switch to another port")
+                self.NewPort = random.randint(1000, 9999)
 
-        self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
-        self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
-        logging.info(f"Server listening at {self.HOST} port {self.PORT} 🙉")
 
     def send(self, port, data):
         if type(data) == str:
