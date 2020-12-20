@@ -23,7 +23,7 @@ class BaseServer:
         self.DataSocket = None
 
         # self.NewPort = random.randint(1000, 9999)
-        self.NewPort = 6969
+        self.NewPort = 3001
         self.clientAddr = None
         self.clientPort = None
 
