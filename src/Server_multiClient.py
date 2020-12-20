@@ -1,4 +1,4 @@
-from .Server_window import WindowServer
+from Server_window import WindowServer
 import multiprocessing
 import argparse
 import logging
@@ -40,3 +40,8 @@ class MultiClientServer(WindowServer):
             mClientHandlerProcess.join()
             if Args.verify:
                 self.checkFile()
+
+
+if __name__ == '__main__':
+    mMultiClientServer = MultiClientServer()
+    mMultiClientServer.run()

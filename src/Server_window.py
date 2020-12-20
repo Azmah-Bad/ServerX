@@ -138,6 +138,8 @@ class WindowServer(BaseServer):
         """
         ACKd = []
         ReceivedACK = 0
+        ResentACK = []
+        
         while True:
             try:
                 ReceivedACK = self.ackHandler(True)
@@ -145,8 +147,9 @@ class WindowServer(BaseServer):
                 if ReceivedACK == EndIndex:  # received last expected ACK in the Window
                     break
 
-                if ReceivedACK in ACKd:  # received an ACK twice
+                if ReceivedACK in ACKd and ReceivedACK not in ResentACK:  # received an ACK twice
                     logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
+                    ResentACK.append(ReceivedACK)
                     self.sendSegmentThread(ReceivedACK)
                     self.DroppedSegmentCount += 1
 
@@ -154,8 +157,10 @@ class WindowServer(BaseServer):
 
             except socket.timeout:
                 logging.warning(f"timed out ⏰, resending {ReceivedACK +1}...")
-                self.sendSegmentThread(ReceivedACK)
-                self.DroppedSegmentCount += 1
+                if ReceivedACK not in ResentACK:
+                    ResentACK.append(ReceivedACK)
+                    self.sendSegmentThread(ReceivedACK)
+                    self.DroppedSegmentCount += 1
 
 
 if __name__ == "__main__":

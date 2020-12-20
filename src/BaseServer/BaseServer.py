@@ -22,7 +22,8 @@ class BaseServer:
         self.ServerSocket = None
         self.DataSocket = None
 
-        self.NewPort = random.randint(1000, 9999)
+        # self.NewPort = random.randint(1000, 9999)
+        self.NewPort = 6969
         self.clientAddr = None
         self.clientPort = None
 
@@ -177,8 +178,6 @@ class BaseServer:
             round(os.stat(self.fileName).st_size / int((self.endTime - self.startTime) * (10 ** 6)), 2))
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
         logging.info(f"Transmission rate: {rate} MBps ")
-        # self.ServerSocket.close()
-        # self.DataSocket.close()
         return rate, TotalTime
 
     @abstractmethod
