@@ -137,7 +137,7 @@ class WindowServer(BaseServer):
         :return: None
         """
         ACKd = []
-        ReceivedACK = 0
+        ReceivedACK = StartIndex
         ResentACK = []
         
         while True:
@@ -157,10 +157,10 @@ class WindowServer(BaseServer):
 
             except socket.timeout:
                 logging.warning(f"timed out ⏰, resending {ReceivedACK +1}...")
-                if ReceivedACK not in ResentACK:
-                    ResentACK.append(ReceivedACK)
-                    self.sendSegmentThread(ReceivedACK)
-                    self.DroppedSegmentCount += 1
+                # if ReceivedACK not in ResentACK:
+                ResentACK.append(ReceivedACK)
+                self.sendSegmentThread(ReceivedACK)
+                self.DroppedSegmentCount += 1
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ class MultiClientServer(WindowServer):
     """
     server that can handle multiple connections and client simultaneously
     """
+
     def run(self):
         Parser = argparse.ArgumentParser()
         Parser.add_argument("-v", "--verbose", action="store_true")
