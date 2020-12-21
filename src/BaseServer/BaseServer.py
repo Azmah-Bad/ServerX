@@ -230,7 +230,7 @@ class BaseServer:
         self.connect()
         self.handshake()
         Rate, TotalTime = self.sendFile()
-        isCorrect = self.checkFile()
+        # isCorrect = self.checkFile()
         self.unsetTimeout()
         return Rate, TotalTime, self.DroppedSegmentCount, isCorrect
 
