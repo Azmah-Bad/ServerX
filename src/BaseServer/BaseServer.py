@@ -22,8 +22,8 @@ class BaseServer:
         self.ServerSocket = None
         self.DataSocket = None
 
-        # self.NewPort = random.randint(1000, 9999)
-        self.NewPort = 3001
+        self.NewPort = random.randint(1000, 9999)
+        # self.NewPort = 3001
         self.clientAddr = None
         self.clientPort = None
 
@@ -227,9 +227,11 @@ class BaseServer:
 
     def train(self):
         self.initSockets()
+        self.connect()
         self.handshake()
         Rate, TotalTime = self.sendFile()
         isCorrect = self.checkFile()
+        self.unsetTimeout()
         return Rate, TotalTime, self.DroppedSegmentCount, isCorrect
 
     def clientHandler(self):

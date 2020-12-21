@@ -7,7 +7,7 @@ import socket
 import sys
 import time
 
-from BaseServer import BaseServer, isDropped
+from .BaseServer import BaseServer, isDropped
 
 
 class WindowServer(BaseServer):
