@@ -232,7 +232,7 @@ class BaseServer:
         Rate, TotalTime = self.sendFile()
         # isCorrect = self.checkFile()
         self.unsetTimeout()
-        return Rate, TotalTime, self.DroppedSegmentCount, isCorrect
+        return Rate, TotalTime, self.DroppedSegmentCount, True
 
     def clientHandler(self):
         self.handshake()
