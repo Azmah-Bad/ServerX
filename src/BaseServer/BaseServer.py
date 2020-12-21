@@ -10,8 +10,11 @@ import multiprocessing
 
 
 class BaseServer:
-    HOST = ""
-    PORT = 8080
+    """
+    an abstract class that has all the necessary methods to create a server
+    """
+    HOST = ""  # empty string for all interfaces on the host machine
+    PORT = 8080  # Server's port
     SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
     SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
     RTT = 0.005
@@ -19,11 +22,10 @@ class BaseServer:
     isTraining = False
 
     def __init__(self) -> None:
-        self.ServerSocket = None
-        self.DataSocket = None
+        self.ServerSocket = None  # public socket
+        self.DataSocket = None  # private socket (dedicated client port)
 
         self.NewPort = random.randint(1000, 9999)
-        # self.NewPort = 3001
         self.clientAddr = None
         self.clientPort = None
 
@@ -34,6 +36,9 @@ class BaseServer:
         self.Segments = []
 
     def initSockets(self):
+        """
+        initialize the sockets
+        """
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
         self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
         while True:
@@ -42,25 +47,41 @@ class BaseServer:
                 self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
                 logging.info(f"Server listening at {self.HOST} port {self.PORT} 🙉")
                 break
-            except OSError:
+            except OSError:  # port already in use
                 logging.warning(f"Port {self.NewPort} already in use, switch to another port")
                 self.NewPort = random.randint(1000, 9999)
 
     def send(self, port, data):
+        """
+        send to a port
+        :param port:
+        :param data: str or bytes
+        :return:
+        """
         if type(data) == str:
             self.ServerSocket.sendto(str.encode(data), (self.clientAddr, port))
         else:
             self.ServerSocket.sendto(data, (self.clientAddr, port))
 
     def rcv(self, Socket, bufferSize):
+        """
+        listen to a socket and receive a data from it
+        :param Socket: socket that will listened to
+        :param bufferSize:
+        :return: (bytes) data received from socket
+        """
         return Socket.recvfrom(bufferSize)
 
     def sendSegment(self, index: int) -> None:
+        """
+        send a segment
+        :param index: to be sent segment's index
+        """
         self.send(self.clientPort, self.Segments[index])
 
     def sendSegmentThread(self, index: int):
         """
-        send a segment in a seperate thread
+        send a segment in a separate thread
         :param index: index of the segment that is going to be sent
         :return: The thread that os sending the segment
         """
@@ -77,6 +98,9 @@ class BaseServer:
         self.DataSocket.settimeout(None)
 
     def connect(self):
+        """
+        listen for a SYN message on the public port
+        """
         handshakeBuffer = 12
         while True:
             message, address = self.rcv(self.ServerSocket, handshakeBuffer)
@@ -86,6 +110,9 @@ class BaseServer:
                 break
 
     def handshake(self):
+        """
+        handles the initial handshake with the client
+        """
         handshakeBuffer = 12
         self.send(self.clientPort, f"SYN-ACK{self.NewPort}")
         logging.debug(f"SYN-ACK sent 🚀")
@@ -98,15 +125,22 @@ class BaseServer:
             raise ConnectionRefusedError
 
     def _getSegments(self, data):
-        """return: list of segments"""
+        """
+        :return: list of segments
+        """
         self.Segments = [
             str((x // self.SEGMENT_SIZE) + 1).zfill(self.SEGMENT_ID_SIZE).encode() + data[x:x + self.SEGMENT_SIZE]
             for x in range(0, len(data), self.SEGMENT_SIZE)]
         return self.Segments
 
     def ackHandler(self, debug=True):
-        # check for ACK
-        rcvACK, _ = self.rcv(self.ServerSocket, 10)
+        """
+        listen to the (it suppose to be private port) public port for ACK and parse it
+        :param debug: debug logs, set to False to not get spammed
+        :return: int received ACK
+        :raises: ValueError if received data can't be parsed into an ACKXXXX
+        """
+        rcvACK, _ = self.rcv(self.ServerSocket, 10)  # FIXME
         if debug:  # spams a lot
             logging.debug(f"received ACK from client: {rcvACK.decode()}")
         try:
@@ -130,6 +164,11 @@ class BaseServer:
         threading.Thread(target=massSender, args=(Segments,), name="writerThread").start()
 
     def reader(self, Segments):
+        """
+        DEPRECIATED
+        :param Segments:
+        :return:
+        """
         LastACK = 0
         ReceivedACKs = []
         for _ in range(len(Segments)):
@@ -147,6 +186,10 @@ class BaseServer:
             self.send(self.clientPort, Segments[ReceivedACKs[-1]])
 
     def _preSendFile(self):
+        """
+        receive filename from client and parse it, then reads the file and make it into segments
+        :return: Segments
+        """
         message, _ = self.rcv(self.DataSocket, 15)
         self.fileName = message.decode()[:-1]
         logging.info(f"file name received {self.fileName}")
@@ -169,6 +212,10 @@ class BaseServer:
         return segments
 
     def _postSendFile(self):
+        """
+        send to client FIN and computes transmission rates and other valuable data
+        :return:
+        """
         self.send(self.clientPort, "FIN")
         self.endTime = time.time()
         TotalTime = int((self.endTime - self.startTime) * 1000)
@@ -186,6 +233,10 @@ class BaseServer:
                                   "and provide an engine to handle sending segments and receiving ACKs")
 
     def sendFile(self):
+        """
+        well it's in the name, send the file
+        :return:
+        """
         segments = self._preSendFile()
 
         self.engine(segments)
@@ -193,6 +244,13 @@ class BaseServer:
         return self._postSendFile()
 
     def writeLogs(self, Name, Logs):
+        """
+        DEBUG purposes
+        write logs down in a file to be plotted
+        :param Name:
+        :param Logs:
+        :return:
+        """
         if self.isTraining:
             return
         with open("logs/" + Name + ".log", "w") as f:
@@ -201,6 +259,10 @@ class BaseServer:
         logging.debug(f"wrote ✍️  logs onto {Name}.log")
 
     def checkFile(self):
+        """
+        reads received and sent file then compares them
+        :return: True if files are identical False otherwise
+        """
         FilePath1 = self.fileName
         FilePath2 = f"../clients/copy_{self.fileName}"
         if self.isTraining:
@@ -226,6 +288,10 @@ class BaseServer:
                 return True
 
     def train(self):
+        """
+        TRAINING PURPOSES
+        :return:
+        """
         self.initSockets()
         self.connect()
         self.handshake()
@@ -235,10 +301,17 @@ class BaseServer:
         return Rate, TotalTime, self.DroppedSegmentCount, True
 
     def clientHandler(self):
+        """
+        handles the connection with one single client
+        """
         self.handshake()
         self.sendFile()
 
     def run(self):
+        """
+        runs the server
+        :return:
+        """
         Parser = argparse.ArgumentParser()
         Parser.add_argument("-v", "--verbose", action="store_true")
         Parser.add_argument("-p", "--port", type=int, default=self.PORT)
