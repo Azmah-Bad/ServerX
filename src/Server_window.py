@@ -13,9 +13,9 @@ from BaseServer import BaseServer, isDropped
 class WindowServer(BaseServer):
     WINDOW_SIZE = 75  # on average we lose 1 segment per 100 segments
     TIMEOUT = 0.006
-    rcvLogs = []
+    rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
-    SegLog = [1] * 1408
+    SegLog = [1] * 1408  # Research Purposes
 
     def engine(self, Segments):
         Index = 0

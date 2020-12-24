@@ -23,12 +23,11 @@ class BaseServer:
     TIMEOUT = 0.007
     isTraining = False
 
-    def __init__(self):
-        self.ServerSocket = None
-        self.DataSocket = None
+    def __init__(self) -> None:
+        self.ServerSocket = None  # public socket
+        self.DataSocket = None  # private socket (dedicated client port)
 
-        self.NewPort = random.randint(1000, 9999)  # data port reserved for client
-        # self.NewPort = 3001
+        self.NewPort = random.randint(1000, 9999)
         self.clientAddr = None  # these will be set on connection with client
         self.clientPort = None
 
@@ -39,6 +38,9 @@ class BaseServer:
         self.Segments = []
 
     def initSockets(self):
+        """
+        initialize the sockets
+        """
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
         self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
         while True:  # to assure that socket is binded and if the random port is already in use switch to another ome
@@ -48,11 +50,17 @@ class BaseServer:
                 logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
                 logging.info(f"Server listening at {self.HOST} private port {self.NewPort} 🙉")
                 break
-            except OSError:
+            except OSError:  # port already in use
                 logging.warning(f"Port {self.NewPort} already in use, switch to another port")
                 self.NewPort = random.randint(1000, 9999)  # reselect a random port
 
     def send(self, port, data):
+        """
+        send to a port
+        :param port:
+        :param data: str or bytes
+        :return:
+        """
         if type(data) == str:
             self.ServerSocket.sendto(str.encode(data), (self.clientAddr, port))
         else:
@@ -60,16 +68,23 @@ class BaseServer:
 
     def rcv(self, Socket, bufferSize):
         """
-        :param Socket: self.ServerSocket to listen to public port self.DataSocket to listen to private port
+        listen to a socket and receive a data from it
+        :param Socket: socket that will listened to (ServerSocket for public port and DataSocket for private)
+        :param bufferSize:
+        :return: (bytes) data received from socket
         """
         return Socket.recvfrom(bufferSize)
 
     def sendSegment(self, index: int) -> None:
+        """
+        send a segment
+        :param index: to be sent segment's index
+        """
         self.send(self.clientPort, self.Segments[index])
 
     def sendSegmentThread(self, index: int):
         """
-        send a segment in a seperate thread
+        send a segment in a separate thread
         :param index: index of the segment that is going to be sent
         :return: The thread that os sending the segment
         """
@@ -86,6 +101,9 @@ class BaseServer:
         self.DataSocket.settimeout(None)
 
     def connect(self):
+        """
+        listen for a SYN message on the public port
+        """
         handshakeBuffer = 12
         while True:
             message, address = self.rcv(self.ServerSocket, handshakeBuffer)
@@ -95,6 +113,9 @@ class BaseServer:
                 break
 
     def handshake(self):
+        """
+        handles the initial handshake with the client
+        """
         handshakeBuffer = 12
         self.send(self.clientPort, f"SYN-ACK{self.NewPort}")  # sending data port
         logging.debug(f"SYN-ACK sent 🚀")
@@ -107,7 +128,9 @@ class BaseServer:
             raise ConnectionRefusedError
 
     def _getSegments(self, data):
-        """return: list of segments"""
+        """
+        :return: list of segments
+        """
         self.Segments = [
             str((x // self.SEGMENT_SIZE) + 1).zfill(self.SEGMENT_ID_SIZE).encode() + data[x:x + self.SEGMENT_SIZE]
             for x in range(0, len(data), self.SEGMENT_SIZE)]
@@ -115,10 +138,12 @@ class BaseServer:
 
     def ackHandler(self, debug=True):
         """
-        when an ACK is expected ackhandler listens for the ACK and parse the segment that was ACKed
-        :return int: the segment ID of the ACK'ed segment
+        listen to the (it suppose to be private port) public port for ACK and parse it
+        :param debug: debug logs, set to False to not get spammed
+        :return: int received ACK
+        :raises: ValueError if received data can't be parsed into an ACKXXXX
         """
-        rcvACK, _ = self.rcv(self.ServerSocket, 10)  # FIXME it's suppose to be datasocket port according to the subject but it only works with the public port
+        rcvACK, _ = self.rcv(self.ServerSocket, 10)  # FIXME
         if debug:  # spams a lot
             logging.debug(f"received ACK from client: {rcvACK.decode()}")
         try:
@@ -144,6 +169,8 @@ class BaseServer:
     def reader(self, Segments):
         """
         DEPRECIATED
+        :param Segments:
+        :return:
         """
         LastACK = 0
         ReceivedACKs = []
@@ -189,7 +216,8 @@ class BaseServer:
 
     def _postSendFile(self):
         """
-        after sending all segments send a FIN to the client and computes useful data like the transmission rate
+        send to client FIN and computes transmission rates and other valuable data
+        :return:
         """
         self.send(self.clientPort, "FIN")
         self.endTime = time.time()
@@ -208,6 +236,10 @@ class BaseServer:
                                   "and provide an engine to handle sending segments and receiving ACKs")
 
     def sendFile(self):
+        """
+        well it's in the name, send the file
+        :return:
+        """
         segments = self._preSendFile()
 
         self.engine(segments)
@@ -277,6 +309,10 @@ class BaseServer:
         self.sendFile()
 
     def run(self):
+        """
+        runs the server
+        :return:
+        """
         Parser = argparse.ArgumentParser()
         Parser.add_argument("-v", "--verbose", action="store_true")
         Parser.add_argument("-p", "--port", type=int, default=self.PORT)
