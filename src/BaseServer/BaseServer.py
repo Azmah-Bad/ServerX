@@ -10,7 +10,12 @@ import multiprocessing
 
 
 class BaseServer:
-    HOST = ""
+    """
+    An abstract class with useful methods to create servers for the multiple clients
+    to use it you will have to implement an engine that sends segment to client and then create an instance of it and
+    use the self.run() method
+    """
+    HOST = ""  # empty string = all available interfaces in the host machine (Advised)
     PORT = 8080
     SEGMENT_ID_SIZE = 6  # 6 bites for the segment ID according to subject
     SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
@@ -18,13 +23,13 @@ class BaseServer:
     TIMEOUT = 0.007
     isTraining = False
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.ServerSocket = None
         self.DataSocket = None
 
-        self.NewPort = random.randint(1000, 9999)
+        self.NewPort = random.randint(1000, 9999)  # data port reserved for client
         # self.NewPort = 3001
-        self.clientAddr = None
+        self.clientAddr = None  # these will be set on connection with client
         self.clientPort = None
 
         self.startTime = None
@@ -36,15 +41,16 @@ class BaseServer:
     def initSockets(self):
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
         self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
-        while True:
+        while True:  # to assure that socket is binded and if the random port is already in use switch to another ome
             try:
                 self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
                 self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
-                logging.info(f"Server listening at {self.HOST} port {self.PORT} 🙉")
+                logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
+                logging.info(f"Server listening at {self.HOST} private port {self.NewPort} 🙉")
                 break
             except OSError:
                 logging.warning(f"Port {self.NewPort} already in use, switch to another port")
-                self.NewPort = random.randint(1000, 9999)
+                self.NewPort = random.randint(1000, 9999)  # reselect a random port
 
     def send(self, port, data):
         if type(data) == str:
@@ -53,6 +59,9 @@ class BaseServer:
             self.ServerSocket.sendto(data, (self.clientAddr, port))
 
     def rcv(self, Socket, bufferSize):
+        """
+        :param Socket: self.ServerSocket to listen to public port self.DataSocket to listen to private port
+        """
         return Socket.recvfrom(bufferSize)
 
     def sendSegment(self, index: int) -> None:
@@ -87,7 +96,7 @@ class BaseServer:
 
     def handshake(self):
         handshakeBuffer = 12
-        self.send(self.clientPort, f"SYN-ACK{self.NewPort}")
+        self.send(self.clientPort, f"SYN-ACK{self.NewPort}")  # sending data port
         logging.debug(f"SYN-ACK sent 🚀")
 
         message, address = self.rcv(self.ServerSocket, handshakeBuffer)
@@ -105,8 +114,11 @@ class BaseServer:
         return self.Segments
 
     def ackHandler(self, debug=True):
-        # check for ACK
-        rcvACK, _ = self.rcv(self.ServerSocket, 10)
+        """
+        when an ACK is expected ackhandler listens for the ACK and parse the segment that was ACKed
+        :return int: the segment ID of the ACK'ed segment
+        """
+        rcvACK, _ = self.rcv(self.ServerSocket, 10)  # FIXME it's suppose to be datasocket port according to the subject but it only works with the public port
         if debug:  # spams a lot
             logging.debug(f"received ACK from client: {rcvACK.decode()}")
         try:
@@ -130,6 +142,9 @@ class BaseServer:
         threading.Thread(target=massSender, args=(Segments,), name="writerThread").start()
 
     def reader(self, Segments):
+        """
+        DEPRECIATED
+        """
         LastACK = 0
         ReceivedACKs = []
         for _ in range(len(Segments)):
@@ -147,14 +162,18 @@ class BaseServer:
             self.send(self.clientPort, Segments[ReceivedACKs[-1]])
 
     def _preSendFile(self):
-        message, _ = self.rcv(self.DataSocket, 15)
-        self.fileName = message.decode()[:-1]
+        """
+        prepare for sending the file
+        receive the file name and parse it then turn the file into segments
+        """
+        message, _ = self.rcv(self.DataSocket, 15)  # receive filename from the data port
+        self.fileName = message.decode()[:-1]  # parse filename
         logging.info(f"file name received {self.fileName}")
 
         if self.isTraining:
             self.fileName = "src/10mb.jpg"
 
-        if not os.path.exists(self.fileName):
+        if not os.path.exists(self.fileName):  # File requested doesn't exists
             raise FileNotFoundError(f"file {self.fileName} requested couldn't be found")
 
         with open(self.fileName, "rb") as f:
@@ -169,6 +188,9 @@ class BaseServer:
         return segments
 
     def _postSendFile(self):
+        """
+        after sending all segments send a FIN to the client and computes useful data like the transmission rate
+        """
         self.send(self.clientPort, "FIN")
         self.endTime = time.time()
         TotalTime = int((self.endTime - self.startTime) * 1000)
@@ -193,6 +215,10 @@ class BaseServer:
         return self._postSendFile()
 
     def writeLogs(self, Name, Logs):
+        """
+        DEBUG AND RESEARCH PURPOSES
+        write logs into a file to be ploted by another script
+        """
         if self.isTraining:
             return
         with open("logs/" + Name + ".log", "w") as f:
@@ -201,6 +227,10 @@ class BaseServer:
         logging.debug(f"wrote ✍️  logs onto {Name}.log")
 
     def checkFile(self):
+        """
+        DEBUG AND RESEARCH PURPOSES
+        check if the file received and sent are the same
+        """
         FilePath1 = self.fileName
         FilePath2 = f"../clients/copy_{self.fileName}"
         if self.isTraining:
@@ -226,6 +256,10 @@ class BaseServer:
                 return True
 
     def train(self):
+        """
+        RESEARCH PURPOSES
+        test the current config and returns stats
+        """
         self.initSockets()
         self.connect()
         self.handshake()
@@ -235,6 +269,10 @@ class BaseServer:
         return Rate, TotalTime, self.DroppedSegmentCount, True
 
     def clientHandler(self):
+        """
+        handles the connection with a single client
+        this will be the target function of a separate process to solve the 3rd scenario (multiclient)
+        """
         self.handshake()
         self.sendFile()
 
@@ -260,7 +298,7 @@ class BaseServer:
 
         if Args.remote_debugger:
             import pydevd_pycharm
-            pydevd_pycharm.settrace(Args.remote_debugger, port=6969, stdoutToServer=True, stderrToServer=True)
+            pydevd_pycharm.settrace(Args.remote_debugger, port=4200, stdoutToServer=True, stderrToServer=True)
 
         while True:
             self.connect()
