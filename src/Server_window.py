@@ -31,7 +31,7 @@ class WindowServer(BaseServer):
 
             CycleStart = time.time()
 
-            self.writer(Segments[Index:Index + CurrentWindow])  # sending all segments in all Current window
+            self.writer(Index, Index + CurrentWindow)  # sending all segments in all Current window
             self.windowInspector(Segments, Index, Index + CurrentWindow)
             logging.debug(f"received all ACKs {Index + 1} => {Index + CurrentWindow}")
 

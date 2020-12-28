@@ -27,7 +27,7 @@ class BaseServer:
         self.ServerSocket = None  # public socket
         self.DataSocket = None  # private socket (dedicated client port)
 
-        self.NewPort = random.randint(1000, 9999)
+        self.DataPort = random.randint(1000, 9999)
         self.clientAddr = None  # these will be set on connection with client
         self.clientPort = None
 
@@ -46,13 +46,13 @@ class BaseServer:
         while True:  # to assure that socket is binded and if the random port is already in use switch to another ome
             try:
                 self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
-                self.DataSocket.bind((self.HOST, self.NewPort))  # bind the socket to an address
+                self.DataSocket.bind((self.HOST, self.DataPort))  # bind the socket to an address
                 logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
-                logging.info(f"Server listening at {self.HOST} private port {self.NewPort} 🙉")
+                logging.info(f"Server listening at {self.HOST} private port {self.DataPort} 🙉")
                 break
             except OSError:  # port already in use
-                logging.warning(f"Port {self.NewPort} already in use, switch to another port")
-                self.NewPort = random.randint(1000, 9999)  # reselect a random port
+                logging.warning(f"Port {self.DataPort} already in use, switch to another port")
+                self.DataPort = random.randint(1000, 9999)  # reselect a random port
 
     def send(self, port, data):
         """
@@ -80,7 +80,7 @@ class BaseServer:
         send a segment
         :param index: to be sent segment's index
         """
-        self.send(self.clientPort, self.Segments[index])
+        self.DataSocket.sendto(self.Segments[index], (self.clientAddr, self.clientPort))
 
     def sendSegmentThread(self, index: int):
         """
@@ -117,13 +117,12 @@ class BaseServer:
         handles the initial handshake with the client
         """
         handshakeBuffer = 12
-        self.send(self.clientPort, f"SYN-ACK{self.NewPort}")  # sending data port
+        self.send(self.clientPort, f"SYN-ACK{self.DataPort}")  # sending data port
         logging.debug(f"SYN-ACK sent 🚀")
 
         message, address = self.rcv(self.ServerSocket, handshakeBuffer)
         if b"ACK" in message:
             logging.info(f"handshake with {address} achieved 🤝")
-            self.setTimeout()
         else:
             raise ConnectionRefusedError
 
@@ -143,7 +142,7 @@ class BaseServer:
         :return: int received ACK
         :raises: ValueError if received data can't be parsed into an ACKXXXX
         """
-        rcvACK, _ = self.rcv(self.ServerSocket, 10)  # FIXME
+        rcvACK, _ = self.rcv(self.DataSocket, 10)
         if debug:  # spams a lot
             logging.debug(f"received ACK from client: {rcvACK.decode()}")
         try:
@@ -152,19 +151,19 @@ class BaseServer:
             print(rcvACK.decode())
             raise ValueError(rcvACK.decode())
 
-    def writer(self, Segments: list):
+    def writer(self, Start: int, End: int):
         """
         a launch a thread that will send all the Segments
         :param Segments: list of to be sent segments
         :return: None
         """
 
-        def massSender(Segments):
-            for Segment in Segments:
-                self.send(self.clientPort, Segment)
+        def massSender(_Start, _End):
+            for index in range(_Start, _End):
+                self.sendSegment(index)
 
-        # massSender(Segments)
-        threading.Thread(target=massSender, args=(Segments,), name="writerThread").start()
+        # massSender(Start, End)
+        threading.Thread(target=massSender, args=(Start, End), name="writerThread").start()
 
     def reader(self, Segments):
         """
@@ -210,6 +209,7 @@ class BaseServer:
         segments = self._getSegments(file)  # segment the files
         logging.info(f"File segmented into {len(segments)} segments 🎉")
 
+        self.setTimeout()  # start setting timeouts on the received ACK
         self.startTime = time.time()
 
         return segments
