@@ -159,6 +159,7 @@ class BaseServer:
         """
 
         def massSender(_Start, _End):
+            logging.debug(f"send segments {_Start + 1} => {_End}")
             for index in range(_Start, _End):
                 self.sendSegment(index)
 
@@ -192,7 +193,10 @@ class BaseServer:
         prepare for sending the file
         receive the file name and parse it then turn the file into segments
         """
-        message, _ = self.rcv(self.DataSocket, 15)  # receive filename from the data port
+        while True:
+            message, _ = self.rcv(self.DataSocket, 15)  # receive filename from the data port
+            if b"ACK" not in message:  # ignore trailing ACK from last conection
+                break
         self.fileName = message.decode()[:-1]  # parse filename
         logging.info(f"file name received {self.fileName}")
 
@@ -255,7 +259,7 @@ class BaseServer:
             return
         with open("logs/" + Name + ".log", "w") as f:
             for Log in Logs:
-                f.write(str(Log * 1000) + "\n")
+                f.write(str(Log) + "\n")
         logging.debug(f"wrote ✍️  logs onto {Name}.log")
 
     def checkFile(self):

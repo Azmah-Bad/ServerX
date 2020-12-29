@@ -11,7 +11,7 @@ from BaseServer import BaseServer, isDropped
 
 
 class WindowServer(BaseServer):
-    WINDOW_SIZE = 75  # on average we lose 1 segment per 100 segments
+    WINDOW_SIZE = 80  # on average we lose 1 segment per 100 segments
     TIMEOUT = 0.006
     rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
@@ -26,8 +26,6 @@ class WindowServer(BaseServer):
             CurrentWindow = self.WINDOW_SIZE
             if RemainingSegmentsCount < self.WINDOW_SIZE:
                 CurrentWindow = RemainingSegmentsCount
-
-            logging.debug(f"send segments {Index + 1} => {Index + CurrentWindow}")
 
             CycleStart = time.time()
 
@@ -66,22 +64,26 @@ class WindowServer(BaseServer):
                 if not StartIndex <= ReceivedACK <= EndIndex:
                     continue  # we receive trailing ack from previous window those shall be ignored
 
-                if ReceivedACK in ACKd and ReceivedACK not in ResentACK:  # received an ACK twice that wasn't resent
-                    logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
-                    ResentACK.append(ReceivedACK)
-                    self.sendSegmentThread(ReceivedACK)
-                    self.DroppedSegmentCount += 1
-                    isDropped = True
-                    self.SegLog[ReceivedACK] = 0
+                if ReceivedACK not in ResentACK:
+                    if ReceivedACK in ACKd:  # received an ACK twice that wasn't resent
+                        logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
+                        ResentACK.append(ReceivedACK)
+                        self.sendSegment(ReceivedACK)
+                        self.DroppedSegmentCount += 1
+                        isDropped = True
+                        self.SegLog[ReceivedACK] = 0
+                else :
+                    ResentACK.remove(ReceivedACK)
+
                 ACKd.append(ReceivedACK)
 
             except socket.timeout:
                 logging.warning(f"timed out ⏰, resending {ReceivedACK + 1}...")
-                # if ReceivedACK not in ResentACK:
-                ResentACK.append(ReceivedACK)
-                self.sendSegmentThread(ReceivedACK)
-                self.DroppedSegmentCount += 1
-                self.SegLog[ReceivedACK] = 0
+                if ReceivedACK not in ResentACK:
+                    ResentACK.append(ReceivedACK)
+                    self.sendSegmentThread(ReceivedACK)
+                    self.DroppedSegmentCount += 1
+                    self.SegLog[ReceivedACK] = 0
 
 
 if __name__ == "__main__":
