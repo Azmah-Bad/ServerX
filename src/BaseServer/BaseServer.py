@@ -6,7 +6,6 @@ import time
 from abc import abstractmethod
 import argparse
 import threading
-import multiprocessing
 
 
 class BaseServer:
@@ -27,7 +26,7 @@ class BaseServer:
         self.ServerSocket = None  # public socket
         self.DataSocket = None  # private socket (dedicated client port)
 
-        self.DataPort = random.randint(1000, 9999)
+        self.DataPort = None
         self.clientAddr = None  # these will be set on connection with client
         self.clientPort = None
 
@@ -37,22 +36,27 @@ class BaseServer:
         self.DroppedSegmentCount = 0
         self.Segments = []
 
-    def initSockets(self):
+    def initServerSockets(self):
         """
         initialize the sockets
         """
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
         self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
+        logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
+
+    def initDataSocket(self):
         while True:  # to assure that socket is binded and if the random port is already in use switch to another ome
             try:
+                self.DataPort = random.randint(1000, 9999)
                 self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
                 self.DataSocket.bind((self.HOST, self.DataPort))  # bind the socket to an address
-                logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
                 logging.info(f"Server listening at {self.HOST} private port {self.DataPort} 🙉")
                 break
             except OSError:  # port already in use
                 logging.warning(f"Port {self.DataPort} already in use, switch to another port")
-                self.DataPort = random.randint(1000, 9999)  # reselect a random port
+
+    def closeDataSocket(self):
+        self.DataSocket.close()
 
     def send(self, port, data):
         """
@@ -104,9 +108,8 @@ class BaseServer:
         """
         listen for a SYN message on the public port
         """
-        handshakeBuffer = 12
         while True:
-            message, address = self.rcv(self.ServerSocket, handshakeBuffer)
+            message, address = self.rcv(self.ServerSocket, bufferSize=12)
             self.clientAddr, self.clientPort = address
             if b"SYN" in message:
                 logging.debug(f"SYN Received from {address}")
@@ -116,14 +119,15 @@ class BaseServer:
         """
         handles the initial handshake with the client
         """
-        handshakeBuffer = 12
+        self.initDataSocket()
         self.send(self.clientPort, f"SYN-ACK{self.DataPort}")  # sending data port
         logging.debug(f"SYN-ACK sent 🚀")
 
-        message, address = self.rcv(self.ServerSocket, handshakeBuffer)
+        message, address = self.rcv(self.ServerSocket, 12)
         if b"ACK" in message:
             logging.info(f"handshake with {address} achieved 🤝")
         else:
+            logging.error(f"received message from client {message} expected ACK")
             raise ConnectionRefusedError
 
     def _getSegments(self, data):
@@ -311,6 +315,7 @@ class BaseServer:
         """
         self.handshake()
         self.sendFile()
+        self.closeDataSocket()
 
     def run(self):
         """
@@ -334,7 +339,7 @@ class BaseServer:
         self.PORT = Args.port
         self.HOST = Args.host
 
-        self.initSockets()
+        self.initServerSockets()
 
         if Args.remote_debugger:
             import pydevd_pycharm
@@ -343,6 +348,5 @@ class BaseServer:
         while True:
             self.connect()
             self.clientHandler()
-            self.unsetTimeout()
             if Args.verify:
                 self.checkFile()

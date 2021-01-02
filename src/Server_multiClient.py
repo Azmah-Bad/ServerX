@@ -27,7 +27,7 @@ class MultiClientServer(WindowServer):
         self.PORT = Args.port
         self.HOST = Args.host
 
-        self.initSockets()
+        self.initServerSockets()
 
         if Args.remote_debugger:
             import pydevd_pycharm
