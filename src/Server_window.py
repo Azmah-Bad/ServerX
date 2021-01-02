@@ -15,7 +15,7 @@ class WindowServer(BaseServer):
     TIMEOUT = 0.006
     rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
-    SegLog = [1] * 1408  # Research Purposes
+    SegLog = [1] * 14000  # Research Purposes
 
     def engine(self, Segments):
         Index = 0
