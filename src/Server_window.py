@@ -13,10 +13,10 @@ from BaseServer import BaseServer, isDropped
 class WindowServer(BaseServer):
     WINDOW_SIZE = 80  # on average we lose 1 segment per 100 segments
     TIMEOUT = 0.006
-    RESEND_THRESHOLD = 10
+    RESEND_THRESHOLD = 20
     rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
-    SegLog = [1] * 1408  # Research Purposes
+    SegLog = [1] * 14000  # Research Purposes
 
     def engine(self, Segments):
         Index = 0
@@ -50,7 +50,7 @@ class WindowServer(BaseServer):
         :param EndIndex: index of the last segment sent in the current window
         :return: True if no segment was dropped False otherwise
         """
-        ACKd = []  # list of segments that were ACK'ed
+        ACKd = [StartIndex]  # list of segments that were ACK'ed
         ReceivedACK = StartIndex  # last received ACK
         ResentACK = {}  # list of segments that were resent
         isDropped = False
@@ -69,10 +69,10 @@ class WindowServer(BaseServer):
                     if ReceivedACK not in ResentACK:
                         logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
                         ResentACK[ReceivedACK] = 1
-                        self.sendSegment(ReceivedACK)
+                        self.sendSegmentThread(ReceivedACK)
                         self.DroppedSegmentCount += 1
                         isDropped = True
-                        #self.SegLog[ReceivedACK] = 0
+                        # self.SegLog[ReceivedACK] = 0
                     else:
                         ResentACK[ReceivedACK] += 1
                         if self.RESEND_THRESHOLD < ResentACK[ReceivedACK]:
@@ -81,7 +81,9 @@ class WindowServer(BaseServer):
                 ACKd.append(ReceivedACK)
 
             except socket.timeout:
-                logging.warning(f"timed out ⏰, resending {ReceivedACK + 1}...")
+                logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
+                self.sendSegmentThread(max(ACKd))
+                """
                 if ReceivedACK not in ResentACK:
                     ResentACK[ReceivedACK] = 1
                     self.sendSegmentThread(ReceivedACK)
@@ -91,6 +93,7 @@ class WindowServer(BaseServer):
                     ResentACK[ReceivedACK] += 1
                     if self.RESEND_THRESHOLD < ResentACK[ReceivedACK]:
                         ResentACK.pop(ReceivedACK)
+                """
 
 
 if __name__ == "__main__":

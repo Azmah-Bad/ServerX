@@ -6,6 +6,7 @@ import logging
 
 class MultiClientServer(WindowServer):
     """
+    SCENARIO 3
     server that can handle multiple connections and client simultaneously
     """
 
@@ -29,7 +30,7 @@ class MultiClientServer(WindowServer):
 
         self.initServerSockets()
 
-        if Args.remote_debugger:
+        if Args.remote_debugger:  # FOR DEV AND RESEARCH PURPOSES
             import pydevd_pycharm
             pydevd_pycharm.settrace(Args.remote_debugger, port=6969, stdoutToServer=True, stderrToServer=True)
 
@@ -38,7 +39,7 @@ class MultiClientServer(WindowServer):
             mClientHandlerProcess = multiprocessing.Process(target=self.clientHandler, name="ServerHelper (client "
                                                                                             "handler)")
             mClientHandlerProcess.start()
-            mClientHandlerProcess.join()
+            # mClientHandlerProcess.join()
             if Args.verify:
                 self.checkFile()
 

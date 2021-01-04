@@ -97,12 +97,10 @@ class BaseServer:
         return mSenderThread
 
     def setTimeout(self):
-        self.ServerSocket.settimeout(self.TIMEOUT)
         self.DataSocket.settimeout(self.TIMEOUT)
 
     def unsetTimeout(self):
         self.ServerSocket.settimeout(None)
-        self.DataSocket.settimeout(None)
 
     def connect(self):
         """
@@ -114,6 +112,7 @@ class BaseServer:
             if b"SYN" in message:
                 logging.debug(f"SYN Received from {address}")
                 break
+        self.handshake()
 
     def handshake(self):
         """
@@ -313,7 +312,6 @@ class BaseServer:
         handles the connection with a single client
         this will be the target function of a separate process to solve the 3rd scenario (multiclient)
         """
-        self.handshake()
         self.sendFile()
         self.closeDataSocket()
 
