@@ -13,7 +13,7 @@ from BaseServer import BaseServer, isDropped
 class WindowServer(BaseServer):
     WINDOW_SIZE = 80  # on average we lose 1 segment per 100 segments
     TIMEOUT = 0.006
-    RESEND_THRESHOLD = 10
+    RESEND_THRESHOLD = 40
     rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
     SegLog = [1] * 1407  # Research Purposes
