@@ -32,7 +32,7 @@ class IncrementalServer(BaseServer):
                     Logs[-1] = 0
                     self.DroppedSegmentCount += 1
                     logging.warning(f"timed out ⏲ dropped segment {Index + 1}")
-                    self.send(self.clientPort, Segment)
+                    self.sendSegment(Index)
 
         self.writeLogs("segments", Logs)
 

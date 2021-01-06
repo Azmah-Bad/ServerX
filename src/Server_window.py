@@ -13,10 +13,10 @@ from BaseServer import BaseServer, isDropped
 class WindowServer(BaseServer):
     WINDOW_SIZE = 80  # on average we lose 1 segment per 100 segments
     TIMEOUT = 0.006
-    RESEND_THRESHOLD = 20
+    RESEND_THRESHOLD = 10
     rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
-    SegLog = [1] * 14000  # Research Purposes
+    SegLog = [1] * 1407  # Research Purposes
 
     def engine(self, Segments):
         Index = 0
@@ -40,7 +40,7 @@ class WindowServer(BaseServer):
             Index += CurrentWindow
         # self.writeLogs("Cycle", CycleLogs)
         # self.writeLogs("Ack_rcv_time", self.rcvLogs)
-        # self.writeLogs("segments", self.SegLog)
+        self.writeLogs("segments", self.SegLog)
 
     def windowInspector(self, Segments, StartIndex, EndIndex):
         """
@@ -51,7 +51,6 @@ class WindowServer(BaseServer):
         :return: True if no segment was dropped False otherwise
         """
         ACKd = [StartIndex]  # list of segments that were ACK'ed
-        ReceivedACK = StartIndex  # last received ACK
         ResentACK = {}  # list of segments that were resent
         isDropped = False
 
@@ -81,8 +80,10 @@ class WindowServer(BaseServer):
                 ACKd.append(ReceivedACK)
 
             except socket.timeout:
-                logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
-                self.sendSegmentThread(max(ACKd))
+                if ACKd != [StartIndex]:
+                    logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
+                    self.sendSegmentThread(max(ACKd))
+                # self.SegLog[max(ACKd)] = 0
                 """
                 if ReceivedACK not in ResentACK:
                     ResentACK[ReceivedACK] = 1
