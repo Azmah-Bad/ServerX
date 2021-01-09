@@ -20,7 +20,9 @@ class BaseServer:
     SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
     RTT = 0.005
     TIMEOUT = 0.007
+    MAX_RTT_COUNT = 10
     isTraining = False
+    RTTs = [RTT]
 
     def __init__(self) -> None:
         self.ServerSocket = None  # public socket
@@ -57,6 +59,14 @@ class BaseServer:
 
     def closeDataSocket(self):
         self.DataSocket.close()
+
+    def appendRtt(self, newRTT: int):
+        self.RTTs.append(newRTT)
+        if len(self.RTTs) >= self.MAX_RTT_COUNT:
+            self.RTTs = self.RTTs[-self.MAX_RTT_COUNT:]
+
+    def getMeanRTT(self) -> int:
+        return (sum(self.RTTs) / len(self.RTTs)) * 1.2
 
     def send(self, port, data):
         """
@@ -160,6 +170,10 @@ class BaseServer:
         :param Segments: list of to be sent segments
         :return: None
         """
+        if len(self.Segments) < End:
+            Last = len(self.Segments)
+        else:
+            Last = End
 
         def massSender(_Start, _End):
             logging.debug(f"send segments {_Start + 1} => {_End}")
@@ -167,7 +181,7 @@ class BaseServer:
                 self.sendSegment(index)
 
         # massSender(Start, End)
-        threading.Thread(target=massSender, args=(Start, End), name="writerThread").start()
+        threading.Thread(target=massSender, args=(Start, Last), name="writerThread").start()
 
     def reader(self, Segments):
         """
@@ -234,7 +248,7 @@ class BaseServer:
         rate = "{:.2f}".format(
             round(os.stat(self.fileName).st_size / int((self.endTime - self.startTime) * (10 ** 6)), 2))
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
-        logging.info(f"Transmission rate: {rate} MBps ")
+        logging.info(f"Transmission rate of {type(self).__name__}: {rate} MBps ")
         return rate, TotalTime
 
     @abstractmethod
@@ -297,11 +311,10 @@ class BaseServer:
     def train(self):
         """
         RESEARCH PURPOSES
-        test the current config and returns stats
+        test the current config and returns performance's  stats
         """
-        self.initSockets()
+        self.initServerSockets()
         self.connect()
-        self.handshake()
         Rate, TotalTime = self.sendFile()
         # isCorrect = self.checkFile()
         self.unsetTimeout()

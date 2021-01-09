@@ -21,26 +21,28 @@ class WindowServer(BaseServer):
     def engine(self, Segments):
         Index = 0
         CycleLogs = []
+        CurrentWindow = self.WINDOW_SIZE
+
         while Index < len(Segments):
             RemainingSegmentsCount = len(Segments[Index:])
 
-            CurrentWindow = self.WINDOW_SIZE
             if RemainingSegmentsCount < self.WINDOW_SIZE:
                 CurrentWindow = RemainingSegmentsCount
 
             CycleStart = time.time()
 
             self.writer(Index, Index + CurrentWindow)  # sending all segments in all Current window
-            self.windowInspector(Segments, Index, Index + CurrentWindow)
+            isDropped = self.windowInspector(Segments, Index, Index + CurrentWindow)
             logging.debug(f"received all ACKs {Index + 1} => {Index + CurrentWindow}")
+
+            Index += CurrentWindow
+            #CurrentWindow = int(CurrentWindow * 0.8) if isDropped else int(CurrentWindow * 1.6)
 
             CycleEnd = time.time()
             CycleLogs.append(CycleEnd - CycleStart)
-
-            Index += CurrentWindow
         # self.writeLogs("Cycle", CycleLogs)
         # self.writeLogs("Ack_rcv_time", self.rcvLogs)
-        self.writeLogs("segments", self.SegLog)
+        # self.writeLogs("segments", self.SegLog)
 
     def windowInspector(self, Segments, StartIndex, EndIndex):
         """
@@ -50,7 +52,7 @@ class WindowServer(BaseServer):
         :param EndIndex: index of the last segment sent in the current window
         :return: True if no segment was dropped False otherwise
         """
-        ACKd = [StartIndex]  # list of segments that were ACK'ed
+        ACKd = []  # list of segments that were ACK'ed
         ResentACK = {}  # list of segments that were resent
         isDropped = False
 
@@ -72,7 +74,7 @@ class WindowServer(BaseServer):
                         self.DroppedSegmentCount += 1
                         isDropped = True
                         # self.SegLog[ReceivedACK] = 0
-                    else:
+                    else:  # ignore resent segments
                         ResentACK[ReceivedACK] += 1
                         if self.RESEND_THRESHOLD < ResentACK[ReceivedACK]:
                             ResentACK.pop(ReceivedACK)
@@ -80,7 +82,7 @@ class WindowServer(BaseServer):
                 ACKd.append(ReceivedACK)
 
             except socket.timeout:
-                if ACKd != [StartIndex]:
+                if ACKd != []:
                     logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
                     self.sendSegmentThread(max(ACKd))
                 # self.SegLog[max(ACKd)] = 0

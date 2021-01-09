@@ -1,4 +1,4 @@
-FILENAME = "sujet.pdf"
+FILENAME = "image.png"
 FILE1_PATH = "../src/" + FILENAME
 FILE2_PATH = "../clients/copy_" + FILENAME
 

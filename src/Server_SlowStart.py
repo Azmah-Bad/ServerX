@@ -1,20 +1,43 @@
-"""
-out of 8100 packet client 1 dropped 547
-6 % chance of dropping a packet
-"""
-
 import logging
 import time
 import socket
-from Server_window import WindowServer
+from src import BaseServer
 
-INITIAL_CWINDOW = 15
+INITIAL_CWINDOW = 30
 
 
-class SlowStartServer(WindowServer):
-    TIMEOUT = 0.05
+class SlowStartServer(BaseServer):
+    RESEND_THRESHOLD = 40
 
-    def windowInspectorS2(self, Segments, StartIndex, EndIndex):
+    def engine(self, Segments):
+        Index = 0
+        CWindow = INITIAL_CWINDOW  # Congestion Window
+        CwndLogs = []
+        CycleLogs = []
+
+        while Index < len(Segments):
+            start = time.time()
+            remainingSegments = len(Segments[Index:])
+            if remainingSegments < CWindow:  # Last window
+                CWindow = remainingSegments
+
+            FlightSize = range(Index, Index + CWindow)
+
+            self.writer(Index, Index + CWindow)
+            logging.info(f"sending segments {Index} => {Index + CWindow},Cwnd of {CWindow}")
+            isDropped = self.windowInspector(self.Segments, Index + 1, Index + CWindow)
+            #CWindow = int(CWindow / 2) if isDropped else int(CWindow * 2)
+            #if CWindow < 2:
+            #    CWindow = 2
+            logging.debug(f"CWindow: {CWindow}")
+            CwndLogs.append(CWindow)
+            CycleLogs.append(time.time() - start)
+            Index += len(FlightSize)
+
+        self.writeLogs("Cwnd", CwndLogs)
+        self.writeLogs("Cycle", CycleLogs)
+
+    def windowInspector(self, Segments, StartIndex, EndIndex):
         """
         receives all the ACKs and resend dropped segments if a segment was dropped send the resend of the window
         :param Segments: all the segments
@@ -23,8 +46,7 @@ class SlowStartServer(WindowServer):
         :return: True if no segment was dropped False otherwise
         """
         ACKd = [StartIndex]  # list of segments that were ACK'ed
-        ReceivedACK = StartIndex  # last received ACK
-        ResentACK = {}  # list of segments that were resent
+        ResentACK = {StartIndex: 1}  # list of segments that were resent
         isDropped = False
 
         while True:
@@ -54,35 +76,9 @@ class SlowStartServer(WindowServer):
                 ACKd.append(ReceivedACK)
 
             except socket.timeout:
-                logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
-                self.writer(ReceivedACK, EndIndex)
-
-
-    def engine(self, Segments):
-        Index = 0
-        CWindow = INITIAL_CWINDOW  # Congestion Window
-        CwndLogs = []
-        CycleLogs = []
-
-        while Index < len(Segments):
-            start = time.time()
-            remainingSegments = len(Segments[Index:])
-            if remainingSegments < CWindow:
-                CWindow = remainingSegments
-
-            FlightSize = range(Index, Index + CWindow)
-
-            self.writer(Index, Index + CWindow)
-            logging.info(f"sending segments {Index} => {Index + CWindow},Cwnd of {CWindow}")
-            isDropped = self.windowInspectorS2(self.Segments, Index + 1, Index + CWindow)
-            # CWindow = int(CWindow / 2) if isDropped else int(CWindow + 2)
-            logging.debug(f"CWindow: {CWindow}")
-            CwndLogs.append(CWindow)
-            CycleLogs.append(time.time() - start)
-            Index += len(FlightSize)
-
-        self.writeLogs("Cwnd", CwndLogs)
-        self.writeLogs("Cycle", CycleLogs)
+                logging.warning(f"timed out ⏰, resending {max(ACKd)}...")
+                self.writer(max(ACKd) - 1, EndIndex)
+                isDropped = True
 
 
 if __name__ == "__main__":
