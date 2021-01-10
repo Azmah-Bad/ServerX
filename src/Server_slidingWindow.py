@@ -2,6 +2,7 @@ import socket
 from src import BaseServer
 import logging
 
+
 class SlidingWindowServer(BaseServer):
     """
     Sliding window engine

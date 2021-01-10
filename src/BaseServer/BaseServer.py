@@ -60,13 +60,13 @@ class BaseServer:
     def closeDataSocket(self):
         self.DataSocket.close()
 
-    def appendRtt(self, newRTT: int):
+    def appendRtt(self, newRTT: float):
         self.RTTs.append(newRTT)
         if len(self.RTTs) >= self.MAX_RTT_COUNT:
             self.RTTs = self.RTTs[-self.MAX_RTT_COUNT:]
 
-    def getMeanRTT(self) -> int:
-        return (sum(self.RTTs) / len(self.RTTs)) * 1.2
+    def getMeanRTT(self) -> float:
+        return (sum(self.RTTs) / len(self.RTTs)) * 1.5
 
     def send(self, port, data):
         """
@@ -106,8 +106,8 @@ class BaseServer:
         mSenderThread.start()
         return mSenderThread
 
-    def setTimeout(self):
-        self.DataSocket.settimeout(self.TIMEOUT)
+    def setTimeout(self, timeout=TIMEOUT):
+        self.DataSocket.settimeout(timeout)
 
     def unsetTimeout(self):
         self.ServerSocket.settimeout(None)

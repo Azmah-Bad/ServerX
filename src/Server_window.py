@@ -24,7 +24,7 @@ class WindowServer(BaseServer):
         CurrentWindow = self.WINDOW_SIZE
 
         while Index < len(Segments):
-            RemainingSegmentsCount = len(Segments[Index:])
+            RemainingSegmentsCount = len(Segments) - Index
 
             if RemainingSegmentsCount < self.WINDOW_SIZE:
                 CurrentWindow = RemainingSegmentsCount
@@ -58,7 +58,11 @@ class WindowServer(BaseServer):
 
         while True:
             try:
+                rttStart = time.time()
                 ReceivedACK = self.ackHandler(True)
+                rttEnd = time.time()
+                self.appendRtt(rttEnd - rttStart)
+                self.setTimeout(self.getMeanRTT())
 
                 if ReceivedACK == EndIndex:  # received last expected ACK in the Window
                     return isDropped
@@ -66,18 +70,12 @@ class WindowServer(BaseServer):
                 if not StartIndex <= ReceivedACK <= EndIndex:
                     continue  # we receive trailing ack from previous window those shall be ignored
 
-                if ReceivedACK in ACKd:  # received an ACK twice that wasn't resent
-                    if ReceivedACK not in ResentACK:
-                        logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
-                        ResentACK[ReceivedACK] = 1
-                        self.sendSegmentThread(ReceivedACK)
-                        self.DroppedSegmentCount += 1
-                        isDropped = True
-                        # self.SegLog[ReceivedACK] = 0
-                    else:  # ignore resent segments
-                        ResentACK[ReceivedACK] += 1
-                        if self.RESEND_THRESHOLD < ResentACK[ReceivedACK]:
-                            ResentACK.pop(ReceivedACK)
+                if ACKd.count(ReceivedACK) == 1:  # received an ACK twice that wasn't resent
+                    logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
+                    ResentACK[ReceivedACK] = 1
+                    self.sendSegmentThread(ReceivedACK)
+                    self.DroppedSegmentCount += 1
+                    isDropped = True
 
                 ACKd.append(ReceivedACK)
 
@@ -86,17 +84,6 @@ class WindowServer(BaseServer):
                     logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
                     self.sendSegmentThread(max(ACKd))
                 # self.SegLog[max(ACKd)] = 0
-                """
-                if ReceivedACK not in ResentACK:
-                    ResentACK[ReceivedACK] = 1
-                    self.sendSegmentThread(ReceivedACK)
-                    self.DroppedSegmentCount += 1
-                    #self.SegLog[ReceivedACK] = 0
-                else:
-                    ResentACK[ReceivedACK] += 1
-                    if self.RESEND_THRESHOLD < ResentACK[ReceivedACK]:
-                        ResentACK.pop(ReceivedACK)
-                """
 
 
 if __name__ == "__main__":
