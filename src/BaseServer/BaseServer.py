@@ -66,7 +66,7 @@ class BaseServer:
             self.RTTs = self.RTTs[-self.MAX_RTT_COUNT:]
 
     def getMeanRTT(self) -> float:
-        return (sum(self.RTTs) / len(self.RTTs)) * 1.5
+        return (sum(self.RTTs) / len(self.RTTs)) * 2
 
     def send(self, port, data):
         """
@@ -180,8 +180,8 @@ class BaseServer:
             for index in range(_Start, _End):
                 self.sendSegment(index)
 
-        # massSender(Start, End)
-        threading.Thread(target=massSender, args=(Start, Last), name="writerThread").start()
+        massSender(Start, Last)
+        #threading.Thread(target=massSender, args=(Start, Last), name="writerThread").start()
 
     def reader(self, Segments):
         """

@@ -16,7 +16,7 @@ class WindowServer(BaseServer):
     RESEND_THRESHOLD = 40
     rcvLogs = []  # Research purposes
     ACKed = []  # we noticed that some acked segments get received at once making the server think they were lost
-    SegLog = [1] * 1407  # Research Purposes
+    SegLog = [1] * 227  # Research Purposes
 
     def engine(self, Segments):
         Index = 0
@@ -36,7 +36,7 @@ class WindowServer(BaseServer):
             logging.debug(f"received all ACKs {Index + 1} => {Index + CurrentWindow}")
 
             Index += CurrentWindow
-            #CurrentWindow = int(CurrentWindow * 0.8) if isDropped else int(CurrentWindow * 1.6)
+            # CurrentWindow = int(self.WINDOW_SIZE) if isDropped else int(CurrentWindow * 2)
 
             CycleEnd = time.time()
             CycleLogs.append(CycleEnd - CycleStart)
@@ -70,7 +70,7 @@ class WindowServer(BaseServer):
                 if not StartIndex <= ReceivedACK <= EndIndex:
                     continue  # we receive trailing ack from previous window those shall be ignored
 
-                if ACKd.count(ReceivedACK) == 1:  # received an ACK twice that wasn't resent
+                if ACKd.count(ReceivedACK) == 1 and ReceivedACK + 1 not in ACKd:  # received an ACK twice that wasn't resent
                     logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
                     ResentACK[ReceivedACK] = 1
                     self.sendSegmentThread(ReceivedACK)
