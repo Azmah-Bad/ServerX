@@ -1,12 +1,12 @@
 import logging
 import time
 import socket
-from src import BaseServer
+from BaseServer import BaseServer
 
 INITIAL_CWINDOW = 30
 
 
-class SlowStartServer(BaseServer):
+class ResendTailServer(BaseServer):
     RESEND_THRESHOLD = 40
 
     def engine(self, Segments):
@@ -82,5 +82,5 @@ class SlowStartServer(BaseServer):
 
 
 if __name__ == "__main__":
-    server = SlowStartServer()
+    server = ResendTailServer()
     server.run()

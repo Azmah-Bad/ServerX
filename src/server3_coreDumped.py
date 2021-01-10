@@ -1,7 +1,7 @@
-from Server_window import WindowServer
 import multiprocessing
 import argparse
 import logging
+from server1_coreDumped import WindowServer
 
 
 class MultiClientServer(WindowServer):
@@ -12,8 +12,8 @@ class MultiClientServer(WindowServer):
 
     def run(self):
         Parser = argparse.ArgumentParser()
+        Parser.add_argument("port", type=int, default=self.PORT, help='servers public port')
         Parser.add_argument("-v", "--verbose", action="store_true")
-        Parser.add_argument("-p", "--port", type=int, default=self.PORT)
         Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
         Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)

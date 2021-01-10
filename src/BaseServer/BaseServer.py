@@ -180,8 +180,8 @@ class BaseServer:
             for index in range(_Start, _End):
                 self.sendSegment(index)
 
-        massSender(Start, Last)
-        #threading.Thread(target=massSender, args=(Start, Last), name="writerThread").start()
+        # massSender(Start, Last)
+        threading.Thread(target=massSender, args=(Start, Last), name="writerThread").start()
 
     def reader(self, Segments):
         """
@@ -334,8 +334,8 @@ class BaseServer:
         :return:
         """
         Parser = argparse.ArgumentParser()
+        Parser.add_argument("port", type=int, default=self.PORT,help='servers public port')
         Parser.add_argument("-v", "--verbose", action="store_true")
-        Parser.add_argument("-p", "--port", type=int, default=self.PORT)
         Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
         Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)
@@ -352,7 +352,7 @@ class BaseServer:
 
         self.initServerSockets()
 
-        if Args.remote_debugger:
+        if Args.remote_debugger:  # DEV AND RESEARCH
             import pydevd_pycharm
             pydevd_pycharm.settrace(Args.remote_debugger, port=4200, stdoutToServer=True, stderrToServer=True)
 

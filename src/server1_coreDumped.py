@@ -4,10 +4,8 @@ out of 8100 packet client 1 dropped 547
 """
 import logging
 import socket
-import sys
 import time
-
-from BaseServer import BaseServer, isDropped
+from BaseServer import BaseServer
 
 
 class WindowServer(BaseServer):
@@ -36,7 +34,7 @@ class WindowServer(BaseServer):
             logging.debug(f"received all ACKs {Index + 1} => {Index + CurrentWindow}")
 
             Index += CurrentWindow
-            # CurrentWindow = int(self.WINDOW_SIZE) if isDropped else int(CurrentWindow * 2)
+            CurrentWindow = int(self.WINDOW_SIZE) if isDropped else int(CurrentWindow * 1.5)
 
             CycleEnd = time.time()
             CycleLogs.append(CycleEnd - CycleStart)
@@ -70,8 +68,8 @@ class WindowServer(BaseServer):
                 if not StartIndex <= ReceivedACK <= EndIndex:
                     continue  # we receive trailing ack from previous window those shall be ignored
 
-                if ACKd.count(ReceivedACK) == 1 and ReceivedACK + 1 not in ACKd:  # received an ACK twice that wasn't resent
-                    logging.warning(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
+                if ACKd.count(ReceivedACK) % self.RESEND_THRESHOLD == 1 and ReceivedACK + 1 not in ACKd:  # received an ACK twice that wasn't resent
+                    logging.debug(f"segment {ReceivedACK + 1} was dropped 😞 resending it...")
                     ResentACK[ReceivedACK] = 1
                     self.sendSegmentThread(ReceivedACK)
                     self.DroppedSegmentCount += 1
@@ -80,10 +78,16 @@ class WindowServer(BaseServer):
                 ACKd.append(ReceivedACK)
 
             except socket.timeout:
-                if ACKd != []:
-                    logging.warning(f"timed out ⏰, resending {max(ACKd) + 1}...")
-                    self.sendSegmentThread(max(ACKd))
-                # self.SegLog[max(ACKd)] = 0
+                if ACKd:
+                    toBeResent = max(ACKd)
+                    if toBeResent not in ResentACK:
+                        logging.debug(f"timed out ⏰, resending {toBeResent + 1}...")
+                        self.sendSegmentThread(max(ACKd))
+                        ResentACK[toBeResent] = 1
+                    else:
+                        ResentACK[toBeResent] += 1
+                        if ResentACK[toBeResent] == 20:
+                            ResentACK.pop(max(ACKd))
 
 
 if __name__ == "__main__":
