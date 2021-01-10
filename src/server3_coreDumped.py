@@ -1,18 +1,19 @@
-from Server_window import WindowServer
 import multiprocessing
 import argparse
 import logging
+from server1_coreDumped import WindowServer
 
 
 class MultiClientServer(WindowServer):
     """
+    SCENARIO 3
     server that can handle multiple connections and client simultaneously
     """
 
     def run(self):
         Parser = argparse.ArgumentParser()
+        Parser.add_argument("port", type=int, default=self.PORT, help='servers public port')
         Parser.add_argument("-v", "--verbose", action="store_true")
-        Parser.add_argument("-p", "--port", type=int, default=self.PORT)
         Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
         Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)
@@ -27,9 +28,9 @@ class MultiClientServer(WindowServer):
         self.PORT = Args.port
         self.HOST = Args.host
 
-        self.initSockets()
+        self.initServerSockets()
 
-        if Args.remote_debugger:
+        if Args.remote_debugger:  # FOR DEV AND RESEARCH PURPOSES
             import pydevd_pycharm
             pydevd_pycharm.settrace(Args.remote_debugger, port=6969, stdoutToServer=True, stderrToServer=True)
 
@@ -38,7 +39,7 @@ class MultiClientServer(WindowServer):
             mClientHandlerProcess = multiprocessing.Process(target=self.clientHandler, name="ServerHelper (client "
                                                                                             "handler)")
             mClientHandlerProcess.start()
-            mClientHandlerProcess.join()
+            # mClientHandlerProcess.join()
             if Args.verify:
                 self.checkFile()
 

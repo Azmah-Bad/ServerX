@@ -6,7 +6,6 @@ import time
 from abc import abstractmethod
 import argparse
 import threading
-import multiprocessing
 
 
 class BaseServer:
@@ -21,13 +20,15 @@ class BaseServer:
     SEGMENT_SIZE = 1500 - SEGMENT_ID_SIZE
     RTT = 0.005
     TIMEOUT = 0.007
+    MAX_RTT_COUNT = 10
     isTraining = False
+    RTTs = [RTT]
 
     def __init__(self) -> None:
         self.ServerSocket = None  # public socket
         self.DataSocket = None  # private socket (dedicated client port)
 
-        self.DataPort = random.randint(1000, 9999)
+        self.DataPort = None
         self.clientAddr = None  # these will be set on connection with client
         self.clientPort = None
 
@@ -37,22 +38,35 @@ class BaseServer:
         self.DroppedSegmentCount = 0
         self.Segments = []
 
-    def initSockets(self):
+    def initServerSockets(self):
         """
         initialize the sockets
         """
         self.ServerSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
         self.ServerSocket.bind((self.HOST, self.PORT))  # bind the socket to an address
+        logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
+
+    def initDataSocket(self):
         while True:  # to assure that socket is binded and if the random port is already in use switch to another ome
             try:
+                self.DataPort = random.randint(1000, 9999)
                 self.DataSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)  # create UDP socket
                 self.DataSocket.bind((self.HOST, self.DataPort))  # bind the socket to an address
-                logging.info(f"Server listening at {self.HOST} public port {self.PORT} 🙉")
                 logging.info(f"Server listening at {self.HOST} private port {self.DataPort} 🙉")
                 break
             except OSError:  # port already in use
                 logging.warning(f"Port {self.DataPort} already in use, switch to another port")
-                self.DataPort = random.randint(1000, 9999)  # reselect a random port
+
+    def closeDataSocket(self):
+        self.DataSocket.close()
+
+    def appendRtt(self, newRTT: float):
+        self.RTTs.append(newRTT)
+        if len(self.RTTs) >= self.MAX_RTT_COUNT:
+            self.RTTs = self.RTTs[-self.MAX_RTT_COUNT:]
+
+    def getMeanRTT(self) -> float:
+        return (sum(self.RTTs) / len(self.RTTs)) * 2
 
     def send(self, port, data):
         """
@@ -92,38 +106,37 @@ class BaseServer:
         mSenderThread.start()
         return mSenderThread
 
-    def setTimeout(self):
-        self.ServerSocket.settimeout(self.TIMEOUT)
-        self.DataSocket.settimeout(self.TIMEOUT)
+    def setTimeout(self, timeout=TIMEOUT):
+        self.DataSocket.settimeout(timeout)
 
     def unsetTimeout(self):
         self.ServerSocket.settimeout(None)
-        self.DataSocket.settimeout(None)
 
     def connect(self):
         """
         listen for a SYN message on the public port
         """
-        handshakeBuffer = 12
         while True:
-            message, address = self.rcv(self.ServerSocket, handshakeBuffer)
+            message, address = self.rcv(self.ServerSocket, bufferSize=12)
             self.clientAddr, self.clientPort = address
             if b"SYN" in message:
                 logging.debug(f"SYN Received from {address}")
                 break
+        self.handshake()
 
     def handshake(self):
         """
         handles the initial handshake with the client
         """
-        handshakeBuffer = 12
+        self.initDataSocket()
         self.send(self.clientPort, f"SYN-ACK{self.DataPort}")  # sending data port
         logging.debug(f"SYN-ACK sent 🚀")
 
-        message, address = self.rcv(self.ServerSocket, handshakeBuffer)
+        message, address = self.rcv(self.ServerSocket, 12)
         if b"ACK" in message:
             logging.info(f"handshake with {address} achieved 🤝")
         else:
+            logging.error(f"received message from client {message} expected ACK")
             raise ConnectionRefusedError
 
     def _getSegments(self, data):
@@ -157,14 +170,18 @@ class BaseServer:
         :param Segments: list of to be sent segments
         :return: None
         """
+        if len(self.Segments) < End:
+            Last = len(self.Segments)
+        else:
+            Last = End
 
         def massSender(_Start, _End):
             logging.debug(f"send segments {_Start + 1} => {_End}")
             for index in range(_Start, _End):
                 self.sendSegment(index)
 
-        # massSender(Start, End)
-        threading.Thread(target=massSender, args=(Start, End), name="writerThread").start()
+        # massSender(Start, Last)
+        threading.Thread(target=massSender, args=(Start, Last), name="writerThread").start()
 
     def reader(self, Segments):
         """
@@ -231,7 +248,7 @@ class BaseServer:
         rate = "{:.2f}".format(
             round(os.stat(self.fileName).st_size / int((self.endTime - self.startTime) * (10 ** 6)), 2))
         logging.info(f"Number of dropped segments {self.DroppedSegmentCount}")
-        logging.info(f"Transmission rate: {rate} MBps ")
+        logging.info(f"Transmission rate of {type(self).__name__}: {rate} MBps ")
         return rate, TotalTime
 
     @abstractmethod
@@ -294,11 +311,10 @@ class BaseServer:
     def train(self):
         """
         RESEARCH PURPOSES
-        test the current config and returns stats
+        test the current config and returns performance's  stats
         """
-        self.initSockets()
+        self.initServerSockets()
         self.connect()
-        self.handshake()
         Rate, TotalTime = self.sendFile()
         # isCorrect = self.checkFile()
         self.unsetTimeout()
@@ -309,8 +325,8 @@ class BaseServer:
         handles the connection with a single client
         this will be the target function of a separate process to solve the 3rd scenario (multiclient)
         """
-        self.handshake()
         self.sendFile()
+        self.closeDataSocket()
 
     def run(self):
         """
@@ -318,8 +334,8 @@ class BaseServer:
         :return:
         """
         Parser = argparse.ArgumentParser()
+        Parser.add_argument("port", type=int, default=self.PORT,help='servers public port')
         Parser.add_argument("-v", "--verbose", action="store_true")
-        Parser.add_argument("-p", "--port", type=int, default=self.PORT)
         Parser.add_argument("-t", "--timeout", type=int, default=self.TIMEOUT)
         Parser.add_argument("--host", type=str, default="")
         Parser.add_argument("--remote_debugger", type=str)
@@ -334,15 +350,14 @@ class BaseServer:
         self.PORT = Args.port
         self.HOST = Args.host
 
-        self.initSockets()
+        self.initServerSockets()
 
-        if Args.remote_debugger:
+        if Args.remote_debugger:  # DEV AND RESEARCH
             import pydevd_pycharm
             pydevd_pycharm.settrace(Args.remote_debugger, port=4200, stdoutToServer=True, stderrToServer=True)
 
         while True:
             self.connect()
             self.clientHandler()
-            self.unsetTimeout()
             if Args.verify:
                 self.checkFile()
